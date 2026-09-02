@@ -1,0 +1,12 @@
+{
+  "name": "laa-test-server",
+  "version": "1.0.0",
+  "description": "Throwaway local/dev server for piloting the logging pipeline before NTNU's production API exists (see LAA-6).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
