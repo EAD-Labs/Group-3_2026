@@ -1,26 +1,46 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+class ChatViewProvider implements vscode.WebviewViewProvider {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "guarded-tutor" is now active!');
+	public static readonly viewType = 'guardedTutor.chatView';
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('guarded-tutor.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from guarded-tutor!');
-	});
+	constructor(private readonly _extensionUri: vscode.Uri) {}
 
-	context.subscriptions.push(disposable);
+	public resolveWebviewView(webviewView: vscode.WebviewView) {
+		webviewView.webview.options = {
+			enableScripts: true
+		};
+
+		webviewView.webview.html = this._getHtml();
+	}
+
+	private _getHtml(): string {
+		return `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+			</head>
+			<body>
+				<h2>Guarded Tutor</h2>
+				<p>Chat panel placeholder — UI comes in LAA-10.</p>
+			</body>
+			</html>`;
+	}
 }
 
-// This method is called when your extension is deactivated
+export function activate(context: vscode.ExtensionContext) {
+
+	console.log('Congratulations, your extension "guarded-tutor" is now active!');
+
+	const disposable = vscode.commands.registerCommand('guarded-tutor.helloWorld', () => {
+		vscode.window.showInformationMessage('Hello World from guarded-tutor!');
+	});
+	context.subscriptions.push(disposable);
+
+	const provider = new ChatViewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider)
+	);
+}
+
 export function deactivate() {}
