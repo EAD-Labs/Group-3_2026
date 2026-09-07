@@ -12,9 +12,21 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 		};
 
 		webviewView.webview.html = this._getHtml();
+
+		// Listen for messages coming FROM the webview
+		webviewView.webview.onDidReceiveMessage((message) => {
+			if (message.type === 'sendMessage') {
+				// For now: just echo the same text back.
+				// Real AI/backend logic will replace this in a later ticket.
+				webviewView.webview.postMessage({
+					type: 'botReply',
+					text: `Echo: ${message.text}`
+				});
+			}
+		});
 	}
 
-		private _getHtml(): string {
+	private _getHtml(): string {
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -46,8 +58,22 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 						margin-bottom: 10px;
 						padding: 8px 10px;
 						border-radius: 6px;
-						background-color: var(--vscode-input-background);
+						max-width: 85%;
 						word-wrap: break-word;
+					}
+
+					.userMessage {
+						background-color: var(--vscode-button-background);
+						color: var(--vscode-button-foreground);
+						margin-left: auto;
+						text-align: right;
+					}
+
+					.botMessage {
+						background-color: var(--vscode-input-background);
+						color: var(--vscode-input-foreground);
+						margin-right: auto;
+						text-align: left;
 					}
 
 					#inputArea {
@@ -84,13 +110,54 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 			<body>
 				<div id="chatContainer">
 					<div id="messageList">
-						<div class="message">Hi! Ask me anything about your code.</div>
+						<div class="message botMessage">Hi! Ask me anything about your code.</div>
 					</div>
 					<div id="inputArea">
 						<input type="text" id="messageInput" placeholder="Type your question..." />
 						<button id="sendButton">Send</button>
 					</div>
 				</div>
+
+				<script>
+					const vscode = acquireVsCodeApi();
+					const messageList = document.getElementById('messageList');
+					const messageInput = document.getElementById('messageInput');
+					const sendButton = document.getElementById('sendButton');
+
+					function addMessage(text, sender) {
+						const div = document.createElement('div');
+						div.classList.add('message', sender === 'user' ? 'userMessage' : 'botMessage');
+						div.textContent = text;
+						messageList.appendChild(div);
+						messageList.scrollTop = messageList.scrollHeight;
+					}
+
+					function sendCurrentMessage() {
+						const text = messageInput.value.trim();
+						if (text.length === 0) {
+							return;
+						}
+						addMessage(text, 'user');
+						vscode.postMessage({ type: 'sendMessage', text: text });
+						messageInput.value = '';
+					}
+
+					sendButton.addEventListener('click', sendCurrentMessage);
+
+					messageInput.addEventListener('keydown', (event) => {
+						if (event.key === 'Enter') {
+							sendCurrentMessage();
+						}
+					});
+
+					// Listen for messages coming FROM the extension backend
+					window.addEventListener('message', (event) => {
+						const message = event.data;
+						if (message.type === 'botReply') {
+							addMessage(message.text, 'bot');
+						}
+					});
+				</script>
 			</body>
 			</html>`;
 	}
