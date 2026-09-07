@@ -13,9 +13,27 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.html = this._getHtml();
 
-		// Listen for messages coming FROM the webview
+				// Listen for messages coming FROM the webview
 		webviewView.webview.onDidReceiveMessage((message) => {
 			if (message.type === 'sendMessage') {
+
+				// Capture the active file's content, if there is one open
+				const activeEditor = vscode.window.activeTextEditor;
+
+				let codeContext: { fileName: string; languageId: string; content: string } | null = null;
+
+				if (activeEditor) {
+					codeContext = {
+						fileName: activeEditor.document.fileName,
+						languageId: activeEditor.document.languageId,
+						content: activeEditor.document.getText()
+					};
+				}
+
+				// Log what we captured, for now, so we can see it working
+				console.log('Student message:', message.text);
+				console.log('Captured code context:', codeContext);
+
 				// For now: just echo the same text back.
 				// Real AI/backend logic will replace this in a later ticket.
 				webviewView.webview.postMessage({
