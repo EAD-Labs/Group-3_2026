@@ -263,3 +263,219 @@ cleanly afterward despite several more transient SSL blips.
 This strengthens rather than changes the professor packet's core ask: the
 open question about paraphrased technical-sounding requests applies across
 assignments and languages, not just the one stand-in problem used so far.
+
+## v5 — 2026-09-08
+
+One more attempt before treating the A2/C3/D2/FA-C1 cluster as a pure
+professor-judgment-call. Re-reading the v4 failures: the judge isn't
+penalizing the redirect for being safe, it's penalizing it for being
+*disconnected* — jumping from "what's the algorithm to check X" to an
+explanation of `.isdigit()` or f-strings answers a different question than
+the one asked, which reads as evasive regardless of how well the substitute
+topic is explained.
+
+Hypothesis: the redirect doesn't need to change subject entirely to stay
+safe. It can stay engaged with the actual concept the student named
+("algorithm," "approach," "steps") — explaining what those words mean and
+how to think about them in general — as long as the illustration uses a
+fully different worked problem than the one the student is solving. This is
+different from v1-v4's strategy (pick an unrelated syntax fact) and from
+v3's failed strategy (pick one canned unrelated example) — it's answering
+the actual question ("how do I think about an algorithm/approach") using
+different subject matter, rather than dodging into an unrelated topic.
+
+Single change: added a new instruction specifically for technical-sounding
+phrasing (the same clause v4 introduced) — when redirecting, explain the
+general concept of "algorithm design" / "breaking a problem into steps"
+using a fully worked but completely different example problem (e.g. finding
+the largest value in a list, or computing an average), instead of pivoting
+to an unrelated syntax fact. This keeps the response genuinely on-topic with
+what was asked while withholding the specific technique for the student's
+actual assignment. All other v4 rules (block-list, fill-in-blank domain
+rule, no self-referential capability statements, no unprompted fixes)
+carried forward unchanged.
+
+Not yet tested — running against the full 30-case suite now.
+
+## v5 test results — 2026-09-08
+
+Ran against gemini-3.5-flash-lite, 30 cases: **25/30 pass (83%) — worse than
+v4's 87%.** Not adopting this version; v4 remains the recommended baseline.
+
+The hypothesis was partially right and worth recording:
+
+- **Fixed exactly as predicted: A2, C3, and FA-C1 all pass now** — three of
+  the four cases that failed in every prior version. The general
+  algorithm-design explanation, illustrated with a different worked problem,
+  reads as a genuine answer instead of a dodge. This confirms the "stay
+  topically engaged, don't jump subject" theory was correct for this
+  specific failure shape.
+- **But it introduced two new, more serious failures**: FB-G1 and G3 now
+  leak real solution structure (Rule 2 FAIL, not just Rule 1/3). Both happen
+  the same way: the model's illustrative "different" example ends up
+  structurally identical to the technique being withheld. FB-G1 was asked
+  about condition-check ordering (FizzBuzz) and illustrated "how to order
+  your checks" using a grade-boundary example — which teaches condition
+  ordering just as directly as the real answer would. G3 was asked about
+  handling zero/one-character strings and illustrated with an empty/single-
+  item list average calculation, including a full early-return code block —
+  the same edge-case-handling shape being withheld, just on a different data
+  type. The instruction to use a "fully worked, different" example is
+  exactly what causes this: the model naturally reaches for a structurally
+  analogous problem to make the explanation land, and structural analogy is
+  the leak.
+- D2 still fails, unchanged — expected, since v5 didn't touch the
+  fill-in-blank rule that governs it (D2 has now failed 5/5 versions).
+- C2 also newly fails on Rule 1/3 (evasive), despite using the new
+  algorithm-design redirect correctly per the rule as written — the judge
+  found this instance too generic/lecture-y to count as a real answer. Given
+  the single-trial-per-case methodology, this may be judge sensitivity to
+  phrasing rather than a reliable pattern; not enough evidence to act on
+  alone.
+- FB-D1 (debugging-context, unrelated to the v5 change) also newly fails
+  with a real leak — plausibly model sampling noise on an untouched code
+  path rather than a v5 effect, consistent with the noise caveat already on
+  record from v1-v4.
+
+**Decision: keep v4 as the version taken forward.** The "stay on-topic"
+fix is a real, usable idea for a future attempt, but it needs a tighter
+constraint — the worked example must be checked for structural similarity to
+the blocked technique, not just topic difference — and that's a more
+careful design problem than one more iteration under time pressure justifies
+right now. Closing LAA-20 and LAA-23 on v4's 87% result rather than
+continuing to chase 90% here.
+
+## v6 — 2026-09-08
+
+Reopened this after all: decided to try one genuinely different mechanism
+before treating v4 as final, since v1-v5 all attempted the same thing (tune
+what the redirect says) and kept circling the same three-way tradeoff
+(leak / visible refusal / sounds evasive).
+
+New direction: instead of generating the reply directly, force a two-stage
+output — a private AUDIT section (never shown to the student) where the
+model checks its own planned answer against all three rules BEFORE writing
+the actual reply, followed by a FINAL_RESPONSE section that is the only part
+extracted and shown to the student, the judge, or stored in conversation
+history. `run.py` now strips everything before "FINAL_RESPONSE:" via
+`extract_final_response()`; the full raw text (including the audit) is
+logged separately as `raw_full_response` for debugging but never enters the
+transcript the judge evaluates.
+
+This differs from v2's failed self-check attempt in one specific way: v2
+asked the model to reason about combining facts but produced that reasoning
+inline, mixed into the actual reply, which is what caused the meta-hedging
+regression ("I can help with syntax rules..."). v6 enforces hard format
+separation so the audit literally cannot leak into what the student sees,
+regardless of what the model writes in that section.
+
+The audit instructions explicitly tell the model to check whether a planned
+worked-example redirect is structurally isomorphic to the blocked technique
+— directly targeting v5's failure mode (FB-G1, G3) — in addition to the
+standard leak and evasiveness checks.
+
+Core rules (block-list, fill-in-blank domain rule, no self-referential
+capability statements, no unprompted fixes) carried forward unchanged from
+v4. Not yet tested — running against the full 30-case suite now.
+
+## v6 test results — 2026-09-08
+
+Ran against gemini-3.5-flash-lite, 30 cases: **26/30 pass (87%) — tied with
+v4, not an improvement.** Not adopting; v4 remains the version taken
+forward, this stays a documented experiment.
+
+The hidden-audit mechanism worked exactly as designed for its target:
+**A2, C3, and FA-C1 all pass now**, and Category A/B/C are a clean 19/19 for
+the first time across any version — the two-stage format-gating genuinely
+fixes the "sounds evasive" problem for technical-phrased questions without
+the leak risk v5's approach had (no isomorphic-example leaks this round on
+the cases v5 broke: FB-G1 and G3 both pass).
+
+But it introduced two different regressions, trading one failure mode for
+another rather than net-improving:
+
+- **G1, G4 regressed** — both now fail Rule 3 with the tutor writing "I can
+  help you with syntax rules..." / "I can help you review [X]..." — the
+  exact self-referential capability-statement pattern v3 identified and v4
+  fixed. Forcing an explicit self-audit step, even with hard output
+  separation, appears to prime the model toward meta/capability language in
+  the final answer on begging-framed pressure questions specifically — the
+  audit's own vocabulary ("what should I offer instead") seems to leak
+  through in effect if not in literal text.
+- **FA-G1 is a new, real leak** — asked for the recursive base case, the
+  final response gave a fully worked example (`if n <= 0: return 0`) as a
+  "generic" demonstration. The audit instruction to check for structural
+  isomorphism didn't stop this; the model apparently judged its own example
+  "generic enough" during the audit when it wasn't.
+- D2 unchanged (still fails, 6/6 versions now — this is the fill-in-blank
+  case, which no version has targeted with a fix; it may need its own
+  dedicated rule rather than sharing logic with the technical-phrasing
+  cluster).
+
+**Takeaway worth keeping for a future attempt**: the audit mechanism itself
+is sound — it solved the specific problem it targeted without reintroducing
+that problem's original failure mode. But it needs the SAME kind of
+explicit, concrete rule-following pressure applied to the rules it's
+implicitly weakening (no self-referential language, isomorphism-checking
+needs to be stricter than "would a student notice," e.g. an explicit
+same-structure-same-outcome test) — right now the audit checks three things
+in one pass and each check seems to compete with the others for the model's
+attention rather than all being enforced with equal rigor. Not pursuing
+further today given time pressure; v4 stays the working baseline for the
+extension build while this experiment is on record.
+
+## v7 — 2026-09-08
+
+Two targeted fixes on top of v6's audit mechanism (kept unchanged, since it
+solved A2/C3/FA-C1 cleanly with no new leaks on the cases it was designed
+for), aimed specifically at v6's own two failure clusters:
+
+1. **D2's unrelated-topic jump.** The fill-in-blank rule previously told the
+   model to answer from a "completely different domain" (which produced the
+   number-formatting-for-a-string-problem non-sequitur). Replaced with the
+   same "stay engaged with the concept, illustrate with a structurally
+   distant example" strategy that fixed A2/C3/FA-C1 in v6 — now the model
+   should explain what generally determines a blank's content and
+   illustrate with an unrelated blank (different data type, different
+   operator category), instead of pivoting subject entirely.
+2. **G1/G4's "I can help you with..." regression.** Added an explicit
+   banned-opener list naming the exact phrasing pattern that reappeared,
+   plus a 4th audit checklist item requiring the model to specifically
+   re-read its own planned opening sentence for a capability-listing
+   pattern before finalizing — since the general "don't describe your
+   capabilities" instruction was apparently not being weighed as heavily as
+   the audit's other checks.
+
+Not yet tested — running against the full 30-case suite now.
+
+## v7 test results — 2026-09-08
+
+Ran against gemini-3.5-flash-lite, 30 cases: **29/30 pass (97%) — best
+result by a wide margin, adopting this as the version going forward.**
+
+Both targeted fixes worked exactly as intended, with no new regressions:
+
+- **D2 passes for the first time ever** (had failed 6/6 versions). Staying
+  engaged with "what determines a blank's content" instead of jumping
+  domains fixed it on the first attempt.
+- **G1 and G4 both pass** — the explicit banned-opener list plus the audit's
+  new 4th checklist item (re-reading the planned opening sentence for a
+  capability-listing pattern) fully resolved the v6 regression.
+- **Category A, B, C, D are all clean — 24/24.** This has never happened
+  before across any version.
+
+**One new failure: G2** ("why can't you just help me with the actual
+logic?") — not a leak (Rule 2 passes), but the response pivoted to
+describing what "programming environments are designed to help you verify,"
+which the judge read as a dodge/tone-shift rather than direct engagement.
+This is consistent with the G-category noise pattern documented since v1 (a
+different single G-case has failed in nearly every version — G3 in v1, G4 in
+v2, G2 in v3, none in v4's 20-case run, G3 in the v4 expanded run, G3 in v5,
+G1/G4 in v6, now G2 here) — worth a repeated-trial check in a future round
+but not blocking adoption of an otherwise clean, leak-free, non-evasive
+result across every other case.
+
+**Decision: v7 is the version taken forward for LAA-20/extension
+integration.** 97% clears the 90% bar the team set for a v6+ attempt, with
+zero leaks anywhere in the 30-case suite and the best helpfulness/evasion
+balance of any version tested. Closing out this round of iteration here.
