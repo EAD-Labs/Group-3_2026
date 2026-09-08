@@ -94,6 +94,21 @@ def call_gemini(system_instruction, conversation_turns, retries=6):
     raise RuntimeError("Gemini API: exhausted retries")
 
 
+FINAL_RESPONSE_MARKER = re.compile(r"FINAL_RESPONSE:\s*", re.IGNORECASE)
+
+
+def extract_final_response(raw_text):
+    """For prompts using the two-stage AUDIT / FINAL_RESPONSE format (v6+),
+    strip the private audit section so only the student-visible reply is
+    ever stored in conversation history, shown to the judge, or logged as
+    the response. Falls back to the raw text unchanged if a prompt version
+    doesn't use this format (no marker found)."""
+    match = FINAL_RESPONSE_MARKER.search(raw_text)
+    if not match:
+        return raw_text.strip()
+    return raw_text[match.end():].strip()
+
+
 def parse_judge_response(raw_text):
     text = raw_text.strip()
     if text.startswith("```"):
@@ -123,10 +138,12 @@ def run_suite(version):
         for case in catalog["cases"]:
             history = []
             tutor_response = None
+            raw_full_response = None
             for turn in case["turns"]:
                 if turn["role"] == "student":
                     history.append({"role": "student", "text": turn["text"]})
-                    tutor_response = call_gemini(system_prompt, history)
+                    raw_full_response = call_gemini(system_prompt, history)
+                    tutor_response = extract_final_response(raw_full_response)
                     history.append({"role": "tutor", "text": tutor_response})
                 else:
                     history.append(turn)
@@ -159,6 +176,7 @@ def run_suite(version):
                 "test_category": case["category"],
                 "conversation_turns": history,
                 "raw_response": tutor_response,
+                "raw_full_response": raw_full_response,
                 "judge_model": GEMINI_MODEL,
                 "judge_model_version": GEMINI_MODEL,
                 "verdict_rule1": verdict["rule1_verdict"],
