@@ -68,7 +68,16 @@ def call_gemini(system_instruction, conversation_turns, retries=6):
     }
     for attempt in range(retries):
         _throttle()
-        resp = requests.post(API_URL, params={"key": API_KEY}, json=body, timeout=60)
+        try:
+            resp = requests.post(API_URL, params={"key": API_KEY}, json=body, timeout=60)
+        except requests.exceptions.RequestException as e:
+            _last_call_at[0] = time.monotonic()
+            if attempt < retries - 1:
+                wait = 2 ** attempt
+                print(f"    (network error: {e.__class__.__name__}, retrying in {wait:.0f}s...)")
+                time.sleep(wait)
+                continue
+            raise RuntimeError(f"Gemini API network error after {retries} attempts: {e}")
         _last_call_at[0] = time.monotonic()
         if resp.status_code == 200:
             data = resp.json()

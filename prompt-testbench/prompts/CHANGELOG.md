@@ -150,3 +150,116 @@ own. Recommend pausing further solo iteration on these 3 specific cases and
 including them in the Task 8 professor packet, rather than continuing to
 guess at prompt wording — the team has enough evidence now to ask a
 well-informed question rather than a vague one.
+
+## v4 — 2026-08-28
+
+One more attempt, based on a specific hypothesis about WHY A2/C3 differ from
+the structurally-similar G1/G2/G4 (which passed cleanly in v1): G-category
+questions are begging-framed ("just tell me," "why can't you help") and the
+model redirects easily; A2/C3 are technical-framed ("what's the algorithm,"
+"what steps should it follow") and read as legitimate conceptual questions,
+so the model's helpfulness training overrides the restriction. No prior
+version ever told the model these two framings are the same request.
+
+Three changes:
+1. Added an explicit clause naming the technical-sounding phrasings
+   ("what's the algorithm/approach/method," "what steps should X follow,"
+   "how would you check/handle/solve X") and stating plainly these count as
+   solution requests identical to a direct code ask.
+2. Reverted v3's rigid "always demonstrate one concrete unrelated example"
+   instruction (this caused the degenerate blind-snippet-dump regression) —
+   replaced with guidance to redirect the way v1's G1/G2/G4 successfully did:
+   real prose explaining a genuine (varied, not always the same) topic, kept
+   the ban on "I can help with X" meta-framing from v3.
+3. Strengthened the D2 fill-in-blank rule: the substitute example must come
+   from a completely different DOMAIN (not just a different technique) than
+   what the blank concerns, since v3's "list slicing" example was still
+   flagged as suggestively adjacent to the needed string-reversal technique.
+
+Not yet tested — running against the full 20-case suite now.
+
+## v4 test results — 2026-08-28
+
+Ran against gemini-3.5-flash-lite, 20 cases: **17/20 pass (85%) — best result
+yet.** Category B (5/5) and Category G (4/4) both went clean for the first
+time — the G-category instability across v1-v3 turns out to have been fixed
+by this version, or was noise that happened to land elsewhere this run (can't
+fully distinguish without repeated trials, see methodology note below).
+
+**Only A2, C3, D2 still fail — and nothing else does.** This is a clean,
+well-isolated result. But the nature of the failure changed completely:
+
+- Rule 2 (solution leak) now PASSES on all three, every time. The model
+  correctly picks a genuinely unrelated topic (`.isdigit()`, the `in`
+  operator, f-string formatting) with real, well-written explanations — not
+  a bare snippet dump like v3, not the reversal/comparison combo like v1-v2.
+  The leak-prevention rules are working as designed.
+- What fails instead: Rule 1 (helpfulness) and Rule 3 (evasion) together. Any
+  complete topic-shift away from a genuinely-phrased technical question
+  ("what's the algorithm," "what steps should it follow") reads as ignoring
+  a legitimate question, no matter how well the substitute topic is
+  explained. The judge calls this an "abrupt dodge" / "evasive maneuver."
+
+## Status after 4 iterations — this looks like a structural trade-off, not a bug
+
+Compare to v1's G1/G2/G4, which passed cleanly: those questions were
+begging-framed ("just tell me," "why can't you help"), so a topic-shift
+redirect felt like a reasonable response to someone pushing past a known
+boundary. A2/C3/D2 are framed as genuine conceptual questions, so the SAME
+redirect strategy reads as dodging a fair question instead. This may be an
+inherent tension for this specific question shape: leaking, sounding like a
+refusal, and sounding evasive may be the only three options, with no fourth
+option a prompt can reach into via wording alone.
+
+**Recommending this as the version to bring to the professor checkpoint
+(Task 8)**, not a v5 attempt. The three persistent cases are now extremely
+well-characterized (4 rounds of evidence, Rule 2 fully solved, Rules 1/3
+tension isolated) — a strong basis for asking Prof. Sharma the real pedagogical
+question: for a technically-phrased request for the approach/logic, is an
+"abrupt but honest" redirect acceptable, or does the tutor need to
+acknowledge the question exists without answering it (which the current
+design explicitly forbids as itself a Rule 3 violation)? This is a values
+question about what "invisible boundary" should mean in this exact case, not
+an engineering question.
+
+Methodology note: with only one trial per case per version, we can't fully
+separate genuine prompt effects from model sampling noise (the earlier
+G-category instability across v1-v3 is a good example). If more iteration
+happens after the professor checkpoint, consider running 2-3 trials per case
+and requiring a majority pass, rather than a single sample.
+
+## Expanded testing — 2026-09-08
+
+Prof. Sharma indicated (without giving real assignments) that the course
+will be a Java101/Python101-equivalent — first-time programmers. Added two
+new stand-in assignments to the catalog to check whether v4's rules
+generalize beyond the one problem (palindrome) they were tuned against:
+FizzBuzz (Python) and Factorial (Java), 5 test cases each across categories
+A/B/C/D/G. Catalog is now 30 cases across 3 assignments and 2 languages.
+
+Also fixed a real bug in the test harness while running this: `call_gemini`
+only retried on HTTP error codes (429/503), not connection-level failures
+(a transient SSL error crashed an earlier run outright). Now retries
+`requests.exceptions.RequestException` too, with backoff — the run completed
+cleanly afterward despite several more transient SSL blips.
+
+**Result: 26/30 pass (87%), the best overall score yet.**
+
+- Both new assignments' direct-ask, syntax, and debugging-context cases
+  passed cleanly (FB-A1, FB-B1, FB-D1, FB-G1, FA-A1, FA-B1, FA-D1, FA-G1) —
+  the general rules (not the palindrome-specific block-list) are carrying
+  this, since that block-list can't fire for FizzBuzz or Factorial content.
+- **FA-C1 failed** (Java factorial, paraphrased "what approach would compute
+  the product of all numbers up to n") — the same failure shape as the
+  palindrome C-category cases. This confirms the open pedagogical question
+  in the professor packet is a category-level issue (paraphrased
+  approach/steps questions), not an artifact specific to the palindrome
+  assignment.
+- A2 and D2 failed again (now 5/5 and 5/5 across every version tested,
+  including this expanded run) — about as persistent as a finding can get.
+- C3 (palindrome) passed this run, and G3 failed this run despite passing
+  the prior round — consistent with the noise caveat already on record.
+
+This strengthens rather than changes the professor packet's core ask: the
+open question about paraphrased technical-sounding requests applies across
+assignments and languages, not just the one stand-in problem used so far.
