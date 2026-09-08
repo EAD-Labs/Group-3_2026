@@ -1,10 +1,37 @@
 import * as vscode from 'vscode';
+import { callGuardedTutor, ConversationTurn, LLMClientError } from './llmClient';
+import { getApiKey, promptAndStoreApiKey } from './apiKeyStorage';
+
+// Friendly, generic text for infrastructure failures (timeouts, rate limits,
+// network errors). These are NOT the guarded-mode boundary being enforced —
+// they're plain connectivity/service problems, so it's fine to be direct
+// about them; that has nothing to do with the invisible-refusal requirement,
+// which only applies to withholding assignment solution content.
+function friendlyErrorText(err: LLMClientError): string {
+	switch (err.kind) {
+		case 'no_api_key':
+			return "I don't have an API key configured yet. Run \"Guarded Tutor: Set Gemini API Key\" from the command palette to get started.";
+		case 'timeout':
+			return "That's taking longer than expected to reach the AI service. Please try again.";
+		case 'rate_limit':
+			return "The AI service is busy right now. Please wait a moment and try again.";
+		case 'network':
+			return "I'm having trouble reaching the AI service. Please check your connection and try again.";
+		default:
+			return "Something went wrong getting a response. Please try again.";
+	}
+}
 
 class ChatViewProvider implements vscode.WebviewViewProvider {
 
 	public static readonly viewType = 'guardedTutor.chatView';
 
-	constructor(private readonly _extensionUri: vscode.Uri) {}
+	// Per-session conversation history, sent with every call so the model can
+	// catch leaks that only emerge when combined across turns (see the
+	// guarded-mode prompt's fact-pair combination rule).
+	private history: ConversationTurn[] = [];
+
+	constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {}
 
 	public resolveWebviewView(webviewView: vscode.WebviewView) {
 		webviewView.webview.options = {
@@ -14,32 +41,45 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = this._getHtml();
 
 				// Listen for messages coming FROM the webview
-		webviewView.webview.onDidReceiveMessage((message) => {
+		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'sendMessage') {
 
 				// Capture the active file's content, if there is one open
 				const activeEditor = vscode.window.activeTextEditor;
 
-				let codeContext: { fileName: string; languageId: string; content: string } | null = null;
-
+				let studentText: string = message.text;
 				if (activeEditor) {
-					codeContext = {
-						fileName: activeEditor.document.fileName,
-						languageId: activeEditor.document.languageId,
-						content: activeEditor.document.getText()
-					};
+					const fileName = activeEditor.document.fileName;
+					const languageId = activeEditor.document.languageId;
+					const content = activeEditor.document.getText();
+					studentText = `Current file (${fileName}, ${languageId}):\n\`\`\`\n${content}\n\`\`\`\n\nStudent question: ${message.text}`;
 				}
 
-				// Log what we captured, for now, so we can see it working
-				console.log('Student message:', message.text);
-				console.log('Captured code context:', codeContext);
+				this.history.push({ role: 'student', text: studentText });
 
-				// For now: just echo the same text back.
-				// Real AI/backend logic will replace this in a later ticket.
-				webviewView.webview.postMessage({
-					type: 'botReply',
-					text: `Echo: ${message.text}`
-				});
+				const apiKey = await getApiKey(this._context);
+				if (!apiKey) {
+					this.history.pop();
+					webviewView.webview.postMessage({
+						type: 'botReply',
+						text: friendlyErrorText(new LLMClientError('no_api_key', 'no key'))
+					});
+					return;
+				}
+
+				try {
+					const reply = await callGuardedTutor(apiKey, this.history);
+					this.history.push({ role: 'tutor', text: reply });
+					webviewView.webview.postMessage({ type: 'botReply', text: reply });
+				} catch (err) {
+					// Roll back the student turn so a failed exchange doesn't
+					// pollute future context sent to the model.
+					this.history.pop();
+					const llmErr = err instanceof LLMClientError
+						? err
+						: new LLMClientError('bad_response', String(err));
+					webviewView.webview.postMessage({ type: 'botReply', text: friendlyErrorText(llmErr) });
+				}
 			}
 		});
 	}
@@ -190,7 +230,16 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(disposable);
 
-	const provider = new ChatViewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('guarded-tutor.setApiKey', async () => {
+			const key = await promptAndStoreApiKey(context);
+			if (key) {
+				vscode.window.showInformationMessage('Gemini API key saved.');
+			}
+		})
+	);
+
+	const provider = new ChatViewProvider(context.extensionUri, context);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider)
 	);

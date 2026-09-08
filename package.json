@@ -16,6 +16,10 @@
     {
       "command": "guarded-tutor.helloWorld",
       "title": "Hello World"
+    },
+    {
+      "command": "guarded-tutor.setApiKey",
+      "title": "Guarded Tutor: Set Gemini API Key"
     }
   ],
   "viewsContainers": {
