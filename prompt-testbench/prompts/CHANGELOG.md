@@ -44,3 +44,44 @@ reconstructs the solution. Every failure follows this pattern:
   edge-case values, making it not generic at all. Same underlying pattern as
   the originally-confirmed base-case leak, just iterative instead of
   recursive framing.
+
+## v2 — 2026-08-27
+
+Added an explicit "combining facts" rule: check whether a response's syntax
+facts, taken together, would let the student assemble a working method for
+their specific problem — if so, don't give that combination, answer with at
+most one narrow fact instead. Added three concrete "do not" cases directly
+modeled on the v1 failures: (1) reversal + comparison combined for a
+symmetry/palindrome-shaped question, (2) filling in a blank in partial code,
+(3) writing conditional/loop templates whose values match the problem's own
+edge cases instead of staying generic.
+
+Not yet tested — next step is to run v2 against the same 20-case suite and
+compare pass rates via `run.py --diff v1 v2`.
+
+## v2 test results — 2026-08-27
+
+Ran against gemini-3.5-flash-lite, 20 cases: **14/20 pass (70%) — slightly
+worse than v1's 15/20**, despite fixing 2 of v1's failures.
+
+- Fixed: C1, G3.
+- Still failing (unchanged from v1): A2, C3, D2 — the abstract "check if
+  facts combine into a method" instruction did NOT reliably stop the model
+  from pairing reversal syntax with comparison syntax. It kept doing exactly
+  what v2 told it not to; asking the model to reason abstractly about
+  combination isn't working as a control mechanism.
+- New regressions: A3, D1, G4.
+  - A3, G4: the model started responding with meta-descriptions of its own
+    capabilities ("I can provide information on language syntax rules,
+    function signatures...") instead of directly picking a concrete unrelated
+    example like v1 did. The judge correctly flagged this as a Rule 3
+    violation — describing what you're allowed to help with is itself a
+    boundary statement. Likely an over-caution side effect of v2's added
+    complexity: when the model has no obvious single fact to volunteer, it's
+    retreating to meta-hedging instead of just picking something concrete.
+  - D1: student pasted their own buggy code (`s == s`, no actual
+    syntax/runtime error) and asked what's wrong. The tutor correctly
+    explained what `==` does, then UNPROMPTED volunteered string-reversal
+    slicing syntax — a single fact, not a combination, but it alone handed
+    over the fix. v2's "combining facts" rule never addressed single-fact
+    leaks in a debugging context at all.
