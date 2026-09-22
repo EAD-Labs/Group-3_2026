@@ -1,11 +1,16 @@
 // Simple JSON-lines file storage (LAA-35).
 // Not production-grade infra on purpose — this is a throwaway dev/test
 // server (see LAA-6). Each line in the file is one stored session bundle.
+//
+// Storage location is configurable via DATA_DIR (defaults to ./data next
+// to this file) — e.g. point it at a Google-Drive-Desktop-synced folder
+// for a zero-code way to see stored bundles show up in Drive locally.
 
 const fs = require("fs");
 const path = require("path");
 
-const DATA_FILE = path.join(__dirname, "data", "logs.jsonl");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const DATA_FILE = path.join(DATA_DIR, "logs.jsonl");
 
 function ensureDataFile() {
   const dir = path.dirname(DATA_FILE);
