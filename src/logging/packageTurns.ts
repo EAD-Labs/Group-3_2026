@@ -11,15 +11,15 @@
  * This way the server contract doesn't need to change just because
  * Tejas's internal naming is different.
  *
- * Also: there is no separate "relevant file" array from Tanvi's side —
- * the active file's content is baked directly into the student's
- * message text before it's sent to the LLM. So attachedFiles is always
- * empty for now; the file content is already inside `message` as plain
- * text. Revisit if the professor's analysis needs files split out
- * separately later.
+ * Relevant files (LAA-28, confirmed with Tejas): the active file is
+ * intentionally embedded directly inside the student's message text so
+ * the LLM sees code context inline. For logging, we split it back out
+ * via parseStudentMessage() so `message` holds just the question and
+ * `attachedFiles` holds the file content separately.
  */
 
 import { LogEntry, BatchPayload } from "./logSchema";
+import { parseStudentMessage } from "./relevantFiles";
 
 /**
  * Mirrors Tejas's real ConversationTurn shape from extension.ts.
@@ -41,14 +41,20 @@ function toSchemaRole(role: "student" | "tutor"): "student" | "assistant" {
 
 /**
  * Packages a single raw turn (Tejas's shape) into the agreed LogEntry schema.
+ * Student turns may have an embedded file — split it out so `message` is
+ * just the question and `attachedFiles` carries the file separately.
+ * Assistant/tutor turns never have embedded files, so they pass through as-is.
  */
 export function packageTurn(raw: RawChatTurn, sessionId: string): LogEntry {
+  const isStudent = raw.role === "student";
+  const parsed = isStudent ? parseStudentMessage(raw.text) : null;
+
   return {
     sessionId,
     timestamp: raw.timestamp ?? new Date().toISOString(),
     role: toSchemaRole(raw.role),
-    message: raw.text,
-    attachedFiles: [], // file content is already inline in `text` — nothing separate to attach
+    message: parsed ? parsed.question : raw.text,
+    attachedFiles: parsed ? parsed.attachedFiles : [],
   };
 }
 
