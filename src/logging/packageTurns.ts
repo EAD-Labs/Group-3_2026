@@ -1,37 +1,54 @@
 /**
  * LAA-26: Package chat turns into the agreed schema
  *
- * Reads the FULL chat history once, at the assignment deadline, and
- * packages everything in one pass into the batch payload.
+ * UPDATED to match Tejas's actual ConversationTurn shape found in
+ * extension.ts:
+ *   { role: 'student' | 'tutor', text: string }
  *
- * NOTE: BatchPayload.turns (was `entries`) — renamed to match Garvit's
- * server contract (server/index.js, server/validation.js expect
- * { sessionId, turns }).
+ * Our final schema (LogEntry, sent to the server) keeps its own field
+ * names — role: 'student' | 'assistant', message: string — so we
+ * convert at the boundary here rather than renaming the schema itself.
+ * This way the server contract doesn't need to change just because
+ * Tejas's internal naming is different.
+ *
+ * Also: there is no separate "relevant file" array from Tanvi's side —
+ * the active file's content is baked directly into the student's
+ * message text before it's sent to the LLM. So attachedFiles is always
+ * empty for now; the file content is already inside `message` as plain
+ * text. Revisit if the professor's analysis needs files split out
+ * separately later.
  */
 
-import { LogEntry, Role, AttachedFile, BatchPayload } from "./logSchema";
+import { LogEntry, BatchPayload } from "./logSchema";
 
 /**
- * Shape of one raw turn as it might come out of the chat history.
- * Adjust this once we confirm the exact shape Tejas's engine stores.
+ * Mirrors Tejas's real ConversationTurn shape from extension.ts.
+ * Update this if his shape changes.
  */
 export interface RawChatTurn {
-  role: Role;
-  message: string;
-  timestamp?: string;          // if the engine already has one, we reuse it
-  attachedFiles?: AttachedFile[];
+  role: "student" | "tutor";
+  text: string;
+  timestamp?: string; // not currently present on his side — we generate one if missing
 }
 
 /**
- * Packages a single raw turn into the agreed LogEntry schema.
+ * Converts Tejas's role naming ("tutor") to our schema's role naming
+ * ("assistant"). Student stays the same on both sides.
+ */
+function toSchemaRole(role: "student" | "tutor"): "student" | "assistant" {
+  return role === "tutor" ? "assistant" : "student";
+}
+
+/**
+ * Packages a single raw turn (Tejas's shape) into the agreed LogEntry schema.
  */
 export function packageTurn(raw: RawChatTurn, sessionId: string): LogEntry {
   return {
     sessionId,
     timestamp: raw.timestamp ?? new Date().toISOString(),
-    role: raw.role,
-    message: raw.message,
-    attachedFiles: raw.attachedFiles ?? [],
+    role: toSchemaRole(raw.role),
+    message: raw.text,
+    attachedFiles: [], // file content is already inline in `text` — nothing separate to attach
   };
 }
 
