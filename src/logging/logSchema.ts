@@ -8,6 +8,9 @@
  * - Transmission: at the deadline, the full chat history for the session is read
  *   in one go (not captured turn-by-turn during the chat) and sent as a single batch
  * - If offline at the deadline, retry is deferred to the next VS Code launch (no retry loop)
+ *
+ * NOTE: field renamed from `entries` to `turns` to match Garvit's server
+ * (server/index.js, server/validation.js expect { sessionId, turns }).
  */
 
 // ---- One logged chat turn ----
@@ -46,7 +49,7 @@ export const CURRENT_SESSION: AssignmentSessionConfig = {
 
 export interface BatchPayload {
   sessionId: string;
-  entries: LogEntry[];
+  turns: LogEntry[];       // was `entries` — renamed to match server contract
 }
 
 // ---- Constants ----

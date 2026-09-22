@@ -2,18 +2,20 @@
  * LAA-29: POST a packaged batch to Garvit's server.
  * LAA-30: minimal failure handling — log locally on failure, no retry queue.
  *
- * Note: this only ever sends ONE batch per session (built by LAA-27's
- * checkAndPackageIfDue). If the send fails, we do nothing fancy — the
- * "retry" story is already handled naturally: since we never call
- * markSessionSent() on failure, the next VS Code launch will just try
- * checkAndPackageIfDue() again and re-attempt the send.
+ * NOTE: endpoint corrected from /logs to /log — /logs is only Garvit's
+ * debug GET/listing route; the actual write route is POST /log.
+ *
+ * If the send fails, we do nothing fancy — the "retry" story is already
+ * handled naturally: since we never call markSessionSent() on failure,
+ * the next VS Code launch will just try checkAndPackageIfDue() again
+ * and re-attempt the send.
  */
 
 import { BatchPayload } from "./logSchema";
 
-// TODO: swap this for Garvit's real endpoint once confirmed.
-// Mock/placeholder for now per LAA-29's description.
-const SERVER_ENDPOINT = "http://localhost:3000/logs";
+// TODO: swap this for Garvit's real public URL once it's hosted somewhere
+// reachable beyond his own machine — localhost only works on his laptop.
+const SERVER_ENDPOINT = "http://localhost:3000/log"; // was /logs — fixed per Garvit's report
 
 export interface SendResult {
   success: boolean;

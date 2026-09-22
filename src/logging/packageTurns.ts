@@ -1,13 +1,12 @@
 /**
  * LAA-26: Package chat turns into the agreed schema
  *
- * Updated approach (per team discussion): instead of packaging one turn
- * at a time as it happens, we read the FULL chat history once, at the
- * assignment deadline, and package everything in one pass.
+ * Reads the FULL chat history once, at the assignment deadline, and
+ * packages everything in one pass into the batch payload.
  *
- * This is a pure function — no networking here (that's LAA-29), no file
- * reading here either (that's the job of whatever hands us the raw
- * history from Tejas's engine).
+ * NOTE: BatchPayload.turns (was `entries`) — renamed to match Garvit's
+ * server contract (server/index.js, server/validation.js expect
+ * { sessionId, turns }).
  */
 
 import { LogEntry, Role, AttachedFile, BatchPayload } from "./logSchema";
@@ -46,6 +45,6 @@ export function packageSession(
 ): BatchPayload {
   return {
     sessionId,
-    entries: rawTurns.map((turn) => packageTurn(turn, sessionId)),
+    turns: rawTurns.map((turn) => packageTurn(turn, sessionId)),
   };
 }
