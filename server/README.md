@@ -62,9 +62,35 @@ Returns every stored session bundle as a JSON array.
 
 ## Storage
 
-Session bundles are appended as JSON-lines to `server/data/logs.jsonl`
-(created automatically). This is intentionally simple — not
-production-grade infrastructure (LAA-35).
+Session bundles go through a swappable storage layer under `storage/`, so
+swapping in NTNU's real storage later doesn't require touching `index.js`
+or any route — see `storage/index.js` for how it picks a backend.
+
+Set `STORAGE_BACKEND` to choose (defaults to `local`):
+
+- **`local`** (default) — appends JSON-lines to `storage/data/logs.jsonl`
+  (created automatically). Override the folder with `DATA_DIR` — e.g.
+  point it at a Google-Drive-Desktop-synced folder for a zero-code way to
+  see stored bundles show up in your Drive.
+- **`drive`** — uploads each session bundle straight to a Google Drive
+  folder via the Drive API, gzip-compressed first (chat transcripts
+  typically shrink 90%+). Needs one-time setup — see the comments at the
+  top of `storage/driveStorage.js` for the exact steps (service account,
+  API key, sharing a folder). **This backend hasn't been tested against
+  real Drive yet — verify it works before relying on it**, since it was
+  built without live credentials/network access.
+
+Run with the Drive backend, once set up:
+```bash
+STORAGE_BACKEND=drive GOOGLE_SERVICE_ACCOUNT_KEY='...' GOOGLE_DRIVE_FOLDER_ID='...' npm start
+```
+
+### Swapping to NTNU's real server/storage later
+Two options, neither touches `index.js`:
+1. If it's filesystem-like: point `DATA_DIR` (local backend) at it.
+2. Otherwise: add one new file (e.g. `storage/ntnuStorage.js`) implementing
+   the same two functions (`appendSessionBundle`, `readAllSessionBundles`),
+   add one case to `storage/index.js`, and set `STORAGE_BACKEND=ntnu`.
 
 ## Manual smoke test (LAA-38)
 

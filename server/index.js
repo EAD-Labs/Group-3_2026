@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 // LAA-33 (updated for the finalized LAA-2 batch model) + LAA-34 validation.
 // The extension now sends ONE bundle per (assignment, student) at the
 // assignment deadline: { sessionId, turns: [...] } — not one turn per call.
-app.post("/log", (req, res) => {
+app.post("/log", async (req, res) => {
   const errors = validateSessionBundle(req.body);
   if (errors.length > 0) {
     console.log("Rejected /log payload:", errors);
@@ -30,14 +30,34 @@ app.post("/log", (req, res) => {
     `Received session bundle: sessionId=${req.body.sessionId}, turns=${req.body.turns.length}`
   );
 
-  const stored = appendSessionBundle(req.body); // LAA-35
-  res.status(201).json({ status: "stored", receivedAt: stored.receivedAt });
+  try {
+    const stored = await appendSessionBundle(req.body); // LAA-35
+    res.status(201).json({ status: "stored", receivedAt: stored.receivedAt });
+  } catch (err) {
+    console.error("Storage error:", err.message);
+    res.status(500).json({ error: "Failed to store session bundle." });
+  }
 });
 
 // LAA-37: internal debug listing only — not for the professor, no auth/pagination.
-app.get("/logs", (req, res) => {
-  const all = readAllSessionBundles();
-  res.json(all);
+app.get("/logs", async (req, res) => {
+  try {
+    const all = await readAllSessionBundles();
+    res.json(all);
+  } catch (err) {
+    console.error("Storage read error:", err.message);
+    res.status(500).json({ error: "Failed to read session bundles." });
+  }
+});
+
+// Catch malformed JSON bodies (bad syntax, not just missing fields) and
+// respond with the same clean error shape as everything else, instead of
+// Express's default HTML stack-trace page.
+app.use((err, req, res, next) => {
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Malformed JSON in request body." });
+  }
+  next(err);
 });
 
 app.listen(PORT, () => {

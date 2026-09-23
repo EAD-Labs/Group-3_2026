@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { callGuardedTutor, ConversationTurn, LLMClientError } from './llmClient';
 import { getApiKey, promptAndStoreApiKey } from './apiKeyStorage';
+import { CURRENT_SESSION } from './logging/logSchema';
 
 // Friendly, generic text for infrastructure failures (timeouts, rate limits,
 // network errors). These are NOT the guarded-mode boundary being enforced —
@@ -26,12 +27,23 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 	public static readonly viewType = 'guardedTutor.chatView';
 
-	// Per-session conversation history, sent with every call so the model can
-	// catch leaks that only emerge when combined across turns (see the
-	// guarded-mode prompt's fact-pair combination rule).
-	private history: ConversationTurn[] = [];
+	// Per-session model context, sent with every call so the model can catch
+	// leaks that only emerge when combined across turns (see the guarded-mode
+	// prompt's fact-pair combination rule).
+	private llmHistory: ConversationTurn[] = [];
+
+	// Durable history key shared with the logging pipeline. This is written on
+	// every turn so the batch logger can read the full session later, even if
+	// VS Code restarts or the webview is recreated mid-assignment.
+	private readonly historyKey = `chatHistory:${CURRENT_SESSION.sessionId}`;
 
 	constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {}
+
+	private async appendToDurableHistory(turn: ConversationTurn): Promise<void> {
+		const current = this._context.globalState.get<ConversationTurn[]>(this.historyKey, []);
+		current.push(turn);
+		await this._context.globalState.update(this.historyKey, current);
+	}
 
 	public resolveWebviewView(webviewView: vscode.WebviewView) {
 		webviewView.webview.options = {
@@ -55,11 +67,13 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 					studentText = `Current file (${fileName}, ${languageId}):\n\`\`\`\n${content}\n\`\`\`\n\nStudent question: ${message.text}`;
 				}
 
-				this.history.push({ role: 'student', text: studentText });
+				const studentTurn: ConversationTurn = { role: 'student', text: studentText };
+				this.llmHistory.push(studentTurn);
+				await this.appendToDurableHistory(studentTurn);
 
 				const apiKey = await getApiKey(this._context);
 				if (!apiKey) {
-					this.history.pop();
+					this.llmHistory.pop();
 					webviewView.webview.postMessage({
 						type: 'botReply',
 						text: friendlyErrorText(new LLMClientError('no_api_key', 'no key'))
@@ -68,13 +82,15 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 				}
 
 				try {
-					const reply = await callGuardedTutor(apiKey, this.history);
-					this.history.push({ role: 'tutor', text: reply });
+					const reply = await callGuardedTutor(apiKey, this.llmHistory);
+					const tutorTurn: ConversationTurn = { role: 'tutor', text: reply };
+					this.llmHistory.push(tutorTurn);
+					await this.appendToDurableHistory(tutorTurn);
 					webviewView.webview.postMessage({ type: 'botReply', text: reply });
 				} catch (err) {
-					// Roll back the student turn so a failed exchange doesn't
-					// pollute future context sent to the model.
-					this.history.pop();
+					// Roll back only the model context. The durable history keeps the
+					// attempted student turn so the logging pipeline still sees it.
+					this.llmHistory.pop();
 					const llmErr = err instanceof LLMClientError
 						? err
 						: new LLMClientError('bad_response', String(err));
