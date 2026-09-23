@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { callGuardedTutor, ConversationTurn, LLMClientError } from './llmClient';
 import { getApiKey, promptAndStoreApiKey } from './apiKeyStorage';
 import { CURRENT_SESSION } from './logging/logSchema';
+import { runLoggingCheckOnLaunch } from './logging/runLoggingCheck';
 
 // Friendly, generic text for infrastructure failures (timeouts, rate limits,
 // network errors). These are NOT the guarded-mode boundary being enforced —
@@ -240,6 +241,8 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 export function activate(context: vscode.ExtensionContext) {
 
 	console.log('Congratulations, your extension "guarded-tutor" is now active!');
+
+	runLoggingCheckOnLaunch(context, CURRENT_SESSION);
 
 	const disposable = vscode.commands.registerCommand('guarded-tutor.helloWorld', () => {
 		vscode.window.showInformationMessage('Hello World from guarded-tutor!');
