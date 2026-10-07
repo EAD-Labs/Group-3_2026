@@ -149,3 +149,15 @@ records. Counts describe received bundles (retries may produce duplicates),
 not unique students. No student identities or struggle metrics are added.
 This is an internal dev endpoint with no authentication; restrict access to
 the test server when handling real logs. NTNU owns production access control.
+
+## Docker development deployment (LAA-55)
+
+From `server/`, run `docker compose up --build -d`, then
+`curl http://localhost:3000/`. The server runs as a non-root user and local
+storage persists in the `session-data` named volume. `docker compose down`
+keeps logs; adding `--volumes` deletes them. Test dependencies and existing
+logs are excluded from the image. The container has an HTTP health check.
+
+Compose binds to localhost by default for internal testing. NTNU can adjust
+port exposure and deployment access controls for its environment. This does
+not deploy to NTNU or configure production authentication/retention.

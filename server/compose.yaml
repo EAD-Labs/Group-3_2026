@@ -1,0 +1,14 @@
+services:
+  log-server:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      PORT: "3000"
+      STORAGE_BACKEND: local
+      DATA_DIR: /data
+    volumes:
+      - session-data:/data
+    restart: unless-stopped
+volumes:
+  session-data:
