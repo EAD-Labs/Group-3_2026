@@ -109,3 +109,14 @@ curl http://localhost:3000/logs
 ```
 
 Confirm the bundle you sent shows up in the `GET /logs` response.
+
+## ZIP uploads (LAA-51)
+
+`POST /log` also accepts multipart form data with one ZIP file in the
+`archive` field (maximum 10 MiB). `turns.json` contains the existing
+`{ "sessionId": "...", "turns": [...] }` payload, or a turns array with
+`sessionId` supplied as a form field. JSON clients continue to work.
+
+```bash
+curl -F archive=@session.zip http://localhost:3000/log
+```

@@ -7,7 +7,9 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "adm-zip": "^0.5.18",
     "express": "^4.19.2",
-    "googleapis": "^140.0.0"
+    "googleapis": "^140.0.0",
+    "multer": "^2.4.0"
   }
 }

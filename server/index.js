@@ -3,6 +3,9 @@
 // develop and pilot against. No auth, no retention policy, no dashboard.
 
 const express = require("express");
+const multer = require("multer");
+const AdmZip = require("adm-zip");
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1 } });
 const { validateSessionBundle } = require("./validation");
 const { appendSessionBundle, readAllSessionBundles } = require("./storage");
 
@@ -19,7 +22,19 @@ app.get("/", (req, res) => {
 // LAA-33 (updated for the finalized LAA-2 batch model) + LAA-34 validation.
 // The extension now sends ONE bundle per (assignment, student) at the
 // assignment deadline: { sessionId, turns: [...] } — not one turn per call.
-app.post("/log", async (req, res) => {
+app.post("/log", upload.single("archive"), async (req, res) => {
+  if (req.is("multipart/form-data")) {
+    if (!req.file) return res.status(400).json({ error: "Expected ZIP in archive field." });
+    try {
+      const zip = new AdmZip(req.file.buffer);
+      const turnsFile = zip.getEntry("turns.json");
+      if (!turnsFile) throw new Error("Archive must contain turns.json.");
+      const payload = JSON.parse(turnsFile.getData().toString("utf8"));
+      req.body = Array.isArray(payload) ? { sessionId: req.body.sessionId, turns: payload } : payload;
+    } catch (err) {
+      return res.status(400).json({ error: "Invalid session archive", details: [err.message] });
+    }
+  }
   const errors = validateSessionBundle(req.body);
   if (errors.length > 0) {
     console.log("Rejected /log payload:", errors);
@@ -57,9 +72,16 @@ app.use((err, req, res, next) => {
   if (err.type === "entity.parse.failed") {
     return res.status(400).json({ error: "Malformed JSON in request body." });
   }
+  if (err instanceof multer.MulterError || err.type === "entity.too.large") {
+    return res.status(err.code === "LIMIT_FILE_SIZE" || err.type === "entity.too.large" ? 413 : 400)
+      .json({ error: "Invalid or oversized upload." });
+  }
   next(err);
 });
 
-app.listen(PORT, () => {
-  console.log(`LAA test server listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`LAA test server listening on http://localhost:${PORT}`);
+  });
+}
+module.exports = app;
