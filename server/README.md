@@ -139,3 +139,13 @@ user-controlled filesystem paths. Unsafe/duplicate paths, invalid schemas,
 more than 100 entries, or more than 20 MiB uncompressed are rejected before
 storage. These trace field names define the server contract for the client's
 LAA-42/LAA-49 implementation; that client work remains separate.
+
+## Inspector (LAA-53)
+
+`GET /inspect` returns `totalBundles`, `totalTurns`,
+`totalExecutionTraces`, and `sessions` with raw chat turns, traces, files,
+and receipt timestamps. `GET /inspect?sessionId=assignment-3` filters the
+records. Counts describe received bundles (retries may produce duplicates),
+not unique students. No student identities or struggle metrics are added.
+This is an internal dev endpoint with no authentication; restrict access to
+the test server when handling real logs. NTNU owns production access control.

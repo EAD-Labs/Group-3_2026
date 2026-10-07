@@ -35,3 +35,10 @@ test('preserves extracted traces/files and rejects invalid archives without stor
  }
  assert.equal((await (await fetch(base + '/logs')).json()).length, before.length);
 });
+
+test('inspector reports raw counts and filters sessions', async () => {
+ const data = await (await fetch(base + '/inspect?sessionId=test-session')).json();
+ assert.equal(data.totalBundles, 3); assert.equal(data.totalTurns, 3); assert.equal(data.totalExecutionTraces, 1);
+ assert.equal(data.sessions.at(-1).executionTrace[0].stdout, '1\n');
+ const empty = await (await fetch(base + '/inspect?sessionId=missing')).json(); assert.equal(empty.totalBundles, 0);
+});

@@ -61,6 +61,30 @@ app.get("/logs", async (req, res) => {
   }
 });
 
+// LAA-53: raw telemetry summaries, with optional session filtering.
+app.get("/inspect", async (req, res) => {
+  try {
+    const all = await readAllSessionBundles();
+    const records = req.query.sessionId === undefined ? all : all.filter(bundle => bundle.sessionId === req.query.sessionId);
+    res.json({
+      totalBundles: records.length,
+      totalTurns: records.reduce((sum, bundle) => sum + bundle.turns.length, 0),
+      totalExecutionTraces: records.reduce((sum, bundle) => sum + (bundle.executionTrace || []).length, 0),
+      sessions: records.map(bundle => ({
+        sessionId: bundle.sessionId,
+        receivedAt: bundle.receivedAt,
+        turnCount: bundle.turns.length,
+        executionTrace: bundle.executionTrace || [],
+        files: bundle.files || [],
+        turns: bundle.turns,
+      })),
+    });
+  } catch (err) {
+    console.error("Inspector read error:", err.message);
+    res.status(500).json({ error: "Failed to inspect session bundles." });
+  }
+});
+
 // Catch malformed JSON bodies (bad syntax, not just missing fields) and
 // respond with the same clean error shape as everything else, instead of
 // Express's default HTML stack-trace page.
