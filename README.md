@@ -14,3 +14,12 @@ builds via webpack, verified running in the Extension Development Host.
 ## Next up
 - Sidebar chat panel UI
 - Relevant file detection logic
+
+## Build an installable extension (LAA-54)
+
+Use Node.js 22 or newer. Run `npm ci`, then `npm run package:vsix`.
+The command runs the production webpack build through `vscode:prepublish`
+and writes `artifacts/guarded-tutor-<version>.vsix`. Install it in VS Code
+with **Extensions → … → Install from VSIX**. The existing VS Code engine
+requirement in `package.json` still applies. Server code, logs, source files,
+and previous packages are excluded from the distribution.
