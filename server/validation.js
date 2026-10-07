@@ -17,7 +17,7 @@
 function validateSessionBundle(body) {
   const errors = [];
 
-  if (!body || typeof body !== "object") {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     return ["Request body must be a JSON object."];
   }
 
@@ -59,6 +59,20 @@ function validateSessionBundle(body) {
     }
   });
 
+  if (body.executionTrace !== undefined) {
+    if (!Array.isArray(body.executionTrace)) errors.push("executionTrace must be an array.");
+    else body.executionTrace.forEach((trace, i) => {
+      if (!trace || typeof trace !== "object" || Array.isArray(trace)) {
+        errors.push(`executionTrace[${i}] must be an object.`); return;
+      }
+      if (typeof trace.timestamp !== "string" || !trace.timestamp.endsWith("Z") || !Number.isFinite(Date.parse(trace.timestamp))) errors.push(`executionTrace[${i}].timestamp must be UTC ISO 8601.`);
+      if (!["stdout", "stderr", "output"].some(key => typeof trace[key] === "string")) errors.push(`executionTrace[${i}] requires stdout, stderr, or output (string).`);
+      for (const key of ["stdout", "stderr", "output", "code", "filename"]) {
+        if (trace[key] !== undefined && typeof trace[key] !== "string") errors.push(`executionTrace[${i}].${key} must be a string.`);
+      }
+      if (trace.exitCode !== undefined && trace.exitCode !== null && !Number.isInteger(trace.exitCode)) errors.push(`executionTrace[${i}].exitCode must be an integer or null.`);
+    });
+  }
   return errors;
 }
 

@@ -4,7 +4,7 @@
 
 const express = require("express");
 const multer = require("multer");
-const AdmZip = require("adm-zip");
+const { decodeSessionArchive } = require("./archive");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1 } });
 const { validateSessionBundle } = require("./validation");
 const { appendSessionBundle, readAllSessionBundles } = require("./storage");
@@ -26,11 +26,7 @@ app.post("/log", upload.single("archive"), async (req, res) => {
   if (req.is("multipart/form-data")) {
     if (!req.file) return res.status(400).json({ error: "Expected ZIP in archive field." });
     try {
-      const zip = new AdmZip(req.file.buffer);
-      const turnsFile = zip.getEntry("turns.json");
-      if (!turnsFile) throw new Error("Archive must contain turns.json.");
-      const payload = JSON.parse(turnsFile.getData().toString("utf8"));
-      req.body = Array.isArray(payload) ? { sessionId: req.body.sessionId, turns: payload } : payload;
+      req.body = decodeSessionArchive(req.file.buffer, req.body.sessionId);
     } catch (err) {
       return res.status(400).json({ error: "Invalid session archive", details: [err.message] });
     }

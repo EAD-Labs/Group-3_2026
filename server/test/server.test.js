@@ -18,9 +18,20 @@ function archiveRequest(files) {
 }
 test('JSON and ZIP requests persist chat turns', async () => {
  let r = await fetch(base + '/log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(bundle) }); assert.equal(r.status, 201);
- r = await fetch(base + '/log', archiveRequest({ 'turns.json': bundle })); assert.equal(r.status, 201);
+ r = await fetch(base + '/log', archiveRequest({ 'turns.json': bundle, 'execution_trace.json': [] })); assert.equal(r.status, 201);
  const logs = await (await fetch(base + '/logs')).json(); assert.equal(logs.length, 2); assert.deepEqual(logs[1].turns, bundle.turns);
 });
 test('rejects malformed and missing archive content', async () => {
  for (const files of [{}, { 'turns.json': '{' }, { 'turns.json': { sessionId: 'invalid', turns: [] } }]) assert.equal((await fetch(base + '/log', archiveRequest(files))).status, 400);
+});
+
+test('preserves extracted traces/files and rejects invalid archives without storing', async () => {
+ const trace = [{ timestamp: '2026-10-07T09:00:00Z', code: 'print(1)', stdout: '1\n', exitCode: 0 }];
+ assert.equal((await fetch(base + '/log', archiveRequest({ 'turns.json': bundle, 'execution_trace.json': trace, 'files/main.py': 'print(1)' }))).status, 201);
+ const before = await (await fetch(base + '/logs')).json();
+ assert.deepEqual(before.at(-1).executionTrace, trace); assert.deepEqual(before.at(-1).files, [{ filename: 'main.py', content: 'print(1)' }]);
+ for (const files of [ { 'turns.json': bundle }, { 'turns.json': bundle, 'execution_trace.json': [{}] }, { 'turns.json': bundle, 'execution_trace.json': [], '../escape': 'bad' } ]) {
+  assert.equal((await fetch(base + '/log', archiveRequest(files))).status, 400);
+ }
+ assert.equal((await (await fetch(base + '/logs')).json()).length, before.length);
 });

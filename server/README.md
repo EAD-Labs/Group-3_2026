@@ -120,3 +120,22 @@ Confirm the bundle you sent shows up in the `GET /logs` response.
 ```bash
 curl -F archive=@session.zip http://localhost:3000/log
 ```
+
+## Session archive contract (LAA-52)
+
+ZIPs must contain both `turns.json` (the bundle above) and
+`execution_trace.json` (an array, empty when no code ran). Optional source
+files live under `files/`. A trace requires a UTC ISO timestamp and a string
+`stdout`, `stderr`, or `output`; optional `code` and `filename` are strings,
+`exitCode` is an integer or null. Example:
+
+```json
+[{"timestamp":"2026-10-07T09:00:00Z","code":"print(1)","stdout":"1\n","stderr":"","exitCode":0}]
+```
+
+Archives are decompressed into records and stored by the existing backend,
+including execution traces and source files. They are never extracted to
+user-controlled filesystem paths. Unsafe/duplicate paths, invalid schemas,
+more than 100 entries, or more than 20 MiB uncompressed are rejected before
+storage. These trace field names define the server contract for the client's
+LAA-42/LAA-49 implementation; that client work remains separate.
