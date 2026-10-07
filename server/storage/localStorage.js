@@ -26,9 +26,8 @@ function ensureDataFile() {
 function appendSessionBundle(bundle) {
   ensureDataFile();
   const record = {
+    ...bundle,
     receivedAt: new Date().toISOString(),
-    sessionId: bundle.sessionId,
-    turns: bundle.turns,
   };
   fs.appendFileSync(DATA_FILE, JSON.stringify(record) + "\n");
   return record;

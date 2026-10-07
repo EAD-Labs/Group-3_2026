@@ -109,3 +109,55 @@ curl http://localhost:3000/logs
 ```
 
 Confirm the bundle you sent shows up in the `GET /logs` response.
+
+## ZIP uploads (LAA-51)
+
+`POST /log` also accepts multipart form data with one ZIP file in the
+`archive` field (maximum 10 MiB). `turns.json` contains the existing
+`{ "sessionId": "...", "turns": [...] }` payload, or a turns array with
+`sessionId` supplied as a form field. JSON clients continue to work.
+
+```bash
+curl -F archive=@session.zip http://localhost:3000/log
+```
+
+## Session archive contract (LAA-52)
+
+ZIPs must contain both `turns.json` (the bundle above) and
+`execution_trace.json` (an array, empty when no code ran). Optional source
+files live under `files/`. A trace requires a UTC ISO timestamp and a string
+`stdout`, `stderr`, or `output`; optional `code` and `filename` are strings,
+`exitCode` is an integer or null. Example:
+
+```json
+[{"timestamp":"2026-10-07T09:00:00Z","code":"print(1)","stdout":"1\n","stderr":"","exitCode":0}]
+```
+
+Archives are decompressed into records and stored by the existing backend,
+including execution traces and source files. They are never extracted to
+user-controlled filesystem paths. Unsafe/duplicate paths, invalid schemas,
+more than 100 entries, or more than 20 MiB uncompressed are rejected before
+storage. These trace field names define the server contract for the client's
+LAA-42/LAA-49 implementation; that client work remains separate.
+
+## Inspector (LAA-53)
+
+`GET /inspect` returns `totalBundles`, `totalTurns`,
+`totalExecutionTraces`, and `sessions` with raw chat turns, traces, files,
+and receipt timestamps. `GET /inspect?sessionId=assignment-3` filters the
+records. Counts describe received bundles (retries may produce duplicates),
+not unique students. No student identities or struggle metrics are added.
+This is an internal dev endpoint with no authentication; restrict access to
+the test server when handling real logs. NTNU owns production access control.
+
+## Docker development deployment (LAA-55)
+
+From `server/`, run `docker compose up --build -d`, then
+`curl http://localhost:3000/`. The server runs as a non-root user and local
+storage persists in the `session-data` named volume. `docker compose down`
+keeps logs; adding `--volumes` deletes them. Test dependencies and existing
+logs are excluded from the image. The container has an HTTP health check.
+
+Compose binds to localhost by default for internal testing. NTNU can adjust
+port exposure and deployment access controls for its environment. This does
+not deploy to NTNU or configure production authentication/retention.
