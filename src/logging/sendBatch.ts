@@ -1,17 +1,16 @@
 /**
- * LAA-29: POST a packaged batch to Garvit's server.
- * LAA-30: minimal failure handling — log locally on failure, no retry queue.
+ * LAA-29: POST a packaged session archive to Garvit's server.
+ * LAA-30/LAA-50: return send failures to the persistent retry queue.
  *
  * NOTE: endpoint corrected from /logs to /log — /logs is only Garvit's
  * debug GET/listing route; the actual write route is POST /log.
  *
- * If the send fails, we do nothing fancy — the "retry" story is already
- * handled naturally: since we never call markSessionSent() on failure,
- * the next VS Code launch will just try checkAndPackageIfDue() again
- * and re-attempt the send.
+ * The client follows the multipart ZIP contract implemented on
+ * origin/garvit/laa-server-packaging: POST /log with the ZIP in `archive`.
  */
 
 import { BatchPayload } from "./logSchema";
+import { compressSessionPayload } from "./compressSession";
 
 // TODO: swap this for Garvit's real public URL once it's hosted somewhere
 // reachable beyond his own machine — localhost only works on his laptop.
@@ -23,16 +22,24 @@ export interface SendResult {
 }
 
 /**
- * Sends one packaged batch to the server. Never throws — always resolves
- * with a SendResult so callers can decide what to do next (e.g. call
- * markSessionSent() from LAA-27 only on success).
+ * Sends one packaged session archive to the server. Never throws — always
+ * resolves with a SendResult so callers can queue failed sends or mark a
+ * session sent only on success.
  */
 export async function sendBatch(payload: BatchPayload): Promise<SendResult> {
   try {
+    const archive = await compressSessionPayload(payload);
+    const formData = new FormData();
+    const archiveBlob = new Blob([new Uint8Array(archive)], {
+      type: "application/zip",
+    });
+    formData.append("archive", archiveBlob, "session.zip");
+
     const response = await fetch(SERVER_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      // Let fetch set the multipart boundary; Garvit's server reads the
+      // uploaded ZIP from the `archive` field.
+      body: formData,
     });
 
     if (!response.ok) {
@@ -43,7 +50,7 @@ export async function sendBatch(payload: BatchPayload): Promise<SendResult> {
 
     return { success: true };
   } catch (err) {
-    // Network error, server unreachable, etc. — log locally, no retry loop.
+    // Return failures to runLoggingCheck/retryQueue for a later launch.
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[LAA logging] Failed to send batch: ${message}`);
     return { success: false, error: message };
