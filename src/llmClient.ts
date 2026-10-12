@@ -1,10 +1,5 @@
+import * as vscode from 'vscode';
 import { GUARDED_MODE_PROMPT } from './guardedModePrompt';
-
-// Model the guarded-mode prompt (v7) was validated against. Switching this
-// requires re-running the prompt-testbench suite against the new model
-// before trusting it in production — see prompt-testbench/README.md.
-const GEMINI_MODEL = 'gemini-3.5-flash-lite';
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 3;
@@ -23,6 +18,25 @@ export class LLMClientError extends Error {
 	}
 }
 
+export interface LLMConfig {
+	provider: 'gemini' | 'openai-compatible';
+	geminiModel: string;
+	customEndpoint: string;
+	customModel: string;
+	customApiKey: string;
+}
+
+export function getLLMConfig(): LLMConfig {
+	const config = vscode.workspace.getConfiguration('guardedTutor');
+	return {
+		provider: config.get<'gemini' | 'openai-compatible'>('provider', 'gemini'),
+		geminiModel: config.get<string>('geminiModel', 'gemini-3.5-flash-lite'),
+		customEndpoint: config.get<string>('customEndpoint', 'http://localhost:11434/v1'),
+		customModel: config.get<string>('customModel', 'llama3.1'),
+		customApiKey: config.get<string>('customApiKey', ''),
+	};
+}
+
 // The prompt's mandatory output format is "AUDIT: ... FINAL_RESPONSE: ...".
 // The AUDIT section is the model's private reasoning about what it's
 // withholding and why — it must never reach the student. If this marker is
@@ -36,7 +50,8 @@ function extractFinalResponse(rawText: string): string | null {
 	return rawText.slice(match.index + match[0].length).trim();
 }
 
-async function postToGemini(apiKey: string, history: ConversationTurn[]): Promise<string> {
+async function postToGemini(apiKey: string, history: ConversationTurn[], model: string): Promise<string> {
+	const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 	const contents = history.map((turn) => ({
 		role: turn.role === 'student' ? 'user' : 'model',
 		parts: [{ text: turn.text }],
@@ -52,7 +67,7 @@ async function postToGemini(apiKey: string, history: ConversationTurn[]): Promis
 
 	let response: Response;
 	try {
-		response = await fetch(`${API_URL}?key=${apiKey}`, {
+		response = await fetch(`${apiUrl}?key=${apiKey}`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body),
@@ -84,6 +99,66 @@ async function postToGemini(apiKey: string, history: ConversationTurn[]): Promis
 	return text;
 }
 
+async function postToOpenAICompatible(config: LLMConfig, history: ConversationTurn[]): Promise<string> {
+	const endpoint = config.customEndpoint.replace(/\/+$/, '');
+	const url = `${endpoint}/chat/completions`;
+
+	const messages = [
+		{ role: 'system', content: GUARDED_MODE_PROMPT },
+		...history.map((turn) => ({
+			role: turn.role === 'student' ? 'user' : 'assistant',
+			content: turn.text,
+		})),
+	];
+
+	const body = {
+		model: config.customModel,
+		messages,
+		temperature: 0.2,
+	};
+
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+	if (config.customApiKey) {
+		headers['Authorization'] = `Bearer ${config.customApiKey}`;
+	}
+
+	let response: Response;
+	try {
+		response = await fetch(url, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify(body),
+			signal: controller.signal,
+		});
+	} catch (err) {
+		if (err instanceof Error && err.name === 'AbortError') {
+			throw new LLMClientError('timeout', 'Request to the local/custom AI service timed out.');
+		}
+		throw new LLMClientError('network', `Network error reaching the local/custom AI service at ${endpoint}: ${err instanceof Error ? err.message : String(err)}`);
+	} finally {
+		clearTimeout(timeout);
+	}
+
+	if (response.status === 429 || response.status === 503) {
+		throw new LLMClientError('rate_limit', `Local/custom AI service rate-limited or busy (status ${response.status}).`);
+	}
+	if (!response.ok) {
+		throw new LLMClientError('bad_response', `Local/custom AI service returned status ${response.status}.`);
+	}
+
+	const data = (await response.json()) as {
+		choices?: { message?: { content?: string } }[];
+	};
+	const text = data.choices?.[0]?.message?.content;
+	if (!text) {
+		throw new LLMClientError('bad_response', 'Local/custom AI service returned no usable content.');
+	}
+	return text;
+}
+
 async function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -96,7 +171,8 @@ async function sleep(ms: number): Promise<void> {
  * throws LLMClientError after exhausting retries.
  */
 export async function callGuardedTutor(apiKey: string, history: ConversationTurn[]): Promise<string> {
-	if (!apiKey) {
+	const config = getLLMConfig();
+	if (config.provider === 'gemini' && !apiKey) {
 		throw new LLMClientError('no_api_key', 'No Gemini API key configured.');
 	}
 
@@ -104,7 +180,10 @@ export async function callGuardedTutor(apiKey: string, history: ConversationTurn
 
 	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
 		try {
-			const raw = await postToGemini(apiKey, history);
+			const raw = config.provider === 'openai-compatible'
+				? await postToOpenAICompatible(config, history)
+				: await postToGemini(apiKey, history, config.geminiModel);
+
 			const final = extractFinalResponse(raw);
 			if (final !== null) {
 				return final;

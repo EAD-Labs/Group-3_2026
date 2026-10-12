@@ -40,6 +40,50 @@
           "icon": "media/icon.svg"
         }
       ]
+    },
+    "configuration": {
+      "title": "Guarded Tutor",
+      "properties": {
+        "guardedTutor.provider": {
+          "type": "string",
+          "default": "gemini",
+          "enum": [
+            "gemini",
+            "openai-compatible"
+          ],
+          "enumDescriptions": [
+            "Google Gemini API (Cloud)",
+            "Local or Self-Hosted OpenAI-compatible API (Ollama, vLLM, LM Studio, or NTNU hosted LLM)"
+          ],
+          "description": "LLM provider to use for the AI tutor."
+        },
+        "guardedTutor.geminiModel": {
+          "type": "string",
+          "default": "gemini-3.5-flash-lite",
+          "enum": [
+            "gemini-3.5-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-2.0-flash"
+          ],
+          "description": "Gemini model to use when provider is set to Gemini."
+        },
+        "guardedTutor.customEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/v1",
+          "description": "Base URL of the self-hosted/local LLM API (e.g. http://localhost:11434/v1 for Ollama, or an NTNU server URL)."
+        },
+        "guardedTutor.customModel": {
+          "type": "string",
+          "default": "llama3.1",
+          "description": "Model identifier for the self-hosted/local LLM (e.g. llama3.1, qwen2.5-coder, mistral)."
+        },
+        "guardedTutor.customApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Optional API token / Bearer key for the self-hosted endpoint (leave empty if none required)."
+        }
+      }
     }
   },
   "scripts": {
