@@ -361,7 +361,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	console.log('Congratulations, your extension "guarded-tutor" is now active!');
 
-	runLoggingCheckOnLaunch(context, CURRENT_SESSION);
+	runLoggingCheckOnLaunch(context, CURRENT_SESSION).catch((err) => {
+		console.error('Failed to run logging check on launch:', err);
+	});
 
 	const disposable = vscode.commands.registerCommand('guarded-tutor.helloWorld', () => {
 		vscode.window.showInformationMessage('Hello World from guarded-tutor!');
