@@ -51,6 +51,15 @@ function getRelevantFiles(): FileContext[] {
 	];
 }
 
+function getNonce(): string {
+	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	let text = '';
+	for (let i = 0; i < 32; i++) {
+		text += chars.charAt(Math.floor(Math.random() * chars.length));
+	}
+	return text;
+}
+
 class ChatViewProvider implements vscode.WebviewViewProvider {
 
 	public static readonly viewType = 'guardedTutor.chatView';
@@ -75,14 +84,17 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 	public resolveWebviewView(webviewView: vscode.WebviewView) {
 		webviewView.webview.options = {
-			enableScripts: true
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'media')]
 		};
 
-		webviewView.webview.html = this._getHtml();
+		webviewView.webview.html = this._getHtml(webviewView.webview);
 
 				// Listen for messages coming FROM the webview
-		webviewView.webview.onDidReceiveMessage(async (message) => {
+				webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'sendMessage') {
+
+				
 
 								// LAA-14: build the single documented payload (message + relevant files)
 				const payload: MessagePayload = {
@@ -127,11 +139,20 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 		});
 	}
 
-	private _getHtml(): string {
+		private _getHtml(webview: vscode.Webview): string {
+		const nonce = getNonce();
+		const vendor = (file: string) =>
+			webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', file));
+		const markdownJs = vendor('markdown-it.min.js');
+		const highlightJs = vendor('highlight.min.js');
+		const highlightCss = vendor('github-dark.min.css');
+
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+				<link rel="stylesheet" href="${highlightCss}">
 				<style>
 					html, body {
 						height: 100%;
@@ -206,6 +227,18 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 					#sendButton:hover {
 						background-color: var(--vscode-button-hoverBackground);
 					}
+
+				    .botMessage p { margin: 0 0 8px 0; }
+					.botMessage p:last-child { margin-bottom: 0; }
+					.botMessage ul, .botMessage ol { margin: 4px 0 8px 0; padding-left: 20px; text-align: left; }
+					.botMessage pre { margin: 6px 0; overflow-x: auto; border-radius: 4px; }
+					.botMessage pre code.hljs { padding: 8px; border-radius: 4px; }
+					.botMessage code { font-family: var(--vscode-editor-font-family, monospace); }
+					.botMessage :not(pre) > code {
+						background-color: var(--vscode-textCodeBlock-background);
+						padding: 1px 4px;
+						border-radius: 3px;
+					}
 				</style>
 			</head>
 			<body>
@@ -219,16 +252,34 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 					</div>
 				</div>
 
-				<script>
+				<script nonce="${nonce}" src="${markdownJs}"></script>
+				<script nonce="${nonce}" src="${highlightJs}"></script>
+				<script nonce="${nonce}">
 					const vscode = acquireVsCodeApi();
 					const messageList = document.getElementById('messageList');
 					const messageInput = document.getElementById('messageInput');
 					const sendButton = document.getElementById('sendButton');
 
+						const md = window.markdownit({
+						html: false,
+						highlight: function (str, lang) {
+							if (lang && hljs.getLanguage(lang)) {
+								try {
+									return '<pre><code class="hljs">' + hljs.highlight(str, { language: lang, ignoreIllegals: true }).value + '</code></pre>';
+								} catch (e) { }
+							}
+							return '<pre><code class="hljs">' + md.utils.escapeHtml(str) + '</code></pre>';
+						}
+					});
+
 					function addMessage(text, sender) {
 						const div = document.createElement('div');
 						div.classList.add('message', sender === 'user' ? 'userMessage' : 'botMessage');
-						div.textContent = text;
+						if (sender === 'bot') {
+							div.innerHTML = md.render(text);
+						} else {
+							div.textContent = text;
+						}
 						messageList.appendChild(div);
 						messageList.scrollTop = messageList.scrollHeight;
 					}
