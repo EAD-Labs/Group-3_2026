@@ -239,12 +239,20 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 						padding: 1px 4px;
 						border-radius: 3px;
 					}
+					.meta { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.8em; }
+					.userMessage .meta { justify-content: flex-end; }
+					.avatar { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+					.avatarUser { background-color: var(--vscode-button-foreground); color: var(--vscode-button-background); }
+					.avatarTutor { background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+					.name { font-weight: 600; }
+					.time { opacity: 0.7; }
+					.botMessage { border-left: 3px solid var(--vscode-button-background); }
 				</style>
 			</head>
 			<body>
 				<div id="chatContainer">
 					<div id="messageList">
-						<div class="message botMessage">Hi! Ask me anything about your code.</div>
+						
 					</div>
 					<div id="inputArea">
 						<input type="text" id="messageInput" placeholder="Type your question..." />
@@ -272,17 +280,51 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 						}
 					});
 
+										function formatTime(date) {
+						return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+					}
+
 					function addMessage(text, sender) {
+						const isUser = sender === 'user';
+						const now = new Date();
+
 						const div = document.createElement('div');
-						div.classList.add('message', sender === 'user' ? 'userMessage' : 'botMessage');
-						if (sender === 'bot') {
-							div.innerHTML = md.render(text);
+						div.classList.add('message', isUser ? 'userMessage' : 'botMessage');
+
+						const meta = document.createElement('div');
+						meta.classList.add('meta');
+
+						const avatar = document.createElement('span');
+						avatar.classList.add('avatar', isUser ? 'avatarUser' : 'avatarTutor');
+						avatar.textContent = isUser ? 'Y' : 'T';
+
+						const name = document.createElement('span');
+						name.classList.add('name');
+						name.textContent = isUser ? 'You' : 'Tutor';
+
+						const time = document.createElement('span');
+						time.classList.add('time');
+						time.textContent = formatTime(now);
+						time.title = now.toLocaleString();
+
+						meta.appendChild(avatar);
+						meta.appendChild(name);
+						meta.appendChild(time);
+
+						const body = document.createElement('div');
+						if (isUser) {
+							body.textContent = text;
 						} else {
-							div.textContent = text;
+							body.innerHTML = md.render(text);
 						}
+
+						div.appendChild(meta);
+						div.appendChild(body);
 						messageList.appendChild(div);
 						messageList.scrollTop = messageList.scrollHeight;
 					}
+
+					addMessage('Hi! Ask me anything about your code.', 'bot');
 
 					function sendCurrentMessage() {
 						const text = messageInput.value.trim();
