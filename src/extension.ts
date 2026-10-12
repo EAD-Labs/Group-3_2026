@@ -3,6 +3,8 @@ import { callGuardedTutor, ConversationTurn, LLMClientError } from './llmClient'
 import { getApiKey, promptAndStoreApiKey } from './apiKeyStorage';
 import { CURRENT_SESSION } from './logging/logSchema';
 import { runLoggingCheckOnLaunch } from './logging/runLoggingCheck';
+import { FileContext, MessagePayload, formatPayloadForPrompt } from './messagePayload';
+
 
 // Friendly, generic text for infrastructure failures (timeouts, rate limits,
 // network errors). These are NOT the guarded-mode boundary being enforced —
@@ -22,6 +24,31 @@ function friendlyErrorText(err: LLMClientError): string {
 		default:
 			return "Something went wrong getting a response. Please try again.";
 	}
+}
+
+/**
+ * Determines which file(s) are "relevant" to the student's current question.
+ *
+ * Decision (LAA-13): relevant files = the active editor file only.
+ * Always returns an array (0 or 1 items) so consumers (AI engine, logging)
+ * never need to special-case single-file vs multi-file.
+ * Pairing logic (e.g. matching .h/.c) is deferred until testing shows
+ * single-file context isn't enough.
+ */
+function getRelevantFiles(): FileContext[] {
+	const activeEditor = vscode.window.activeTextEditor;
+
+	if (!activeEditor) {
+		return [];
+	}
+
+	return [
+		{
+			fileName: activeEditor.document.fileName,
+			languageId: activeEditor.document.languageId,
+			content: activeEditor.document.getText()
+		}
+	];
 }
 
 class ChatViewProvider implements vscode.WebviewViewProvider {
@@ -57,16 +84,15 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'sendMessage') {
 
-				// Capture the active file's content, if there is one open
-				const activeEditor = vscode.window.activeTextEditor;
+								// LAA-14: build the single documented payload (message + relevant files)
+				const payload: MessagePayload = {
+					message: message.text,
+					files: getRelevantFiles()
+				};
+				console.log('Outgoing payload:', payload);
 
-				let studentText: string = message.text;
-				if (activeEditor) {
-					const fileName = activeEditor.document.fileName;
-					const languageId = activeEditor.document.languageId;
-					const content = activeEditor.document.getText();
-					studentText = `Current file (${fileName}, ${languageId}):\n\`\`\`\n${content}\n\`\`\`\n\nStudent question: ${message.text}`;
-				}
+				// Same prompt text as before, now generated from the payload
+				const studentText = formatPayloadForPrompt(payload);
 
 				const studentTurn: ConversationTurn = { role: 'student', text: studentText };
 				this.llmHistory.push(studentTurn);
