@@ -43,8 +43,17 @@ export async function compressSessionPayload(
   // Also write out each attached file individually, so the zip is
   // human-inspectable without needing to parse session.json first.
   payload.turns.forEach((turn, turnIndex) => {
-    turn.attachedFiles.forEach((file) => {
-      zip.file(`files/turn-${turnIndex}_${file.filename}`, file.content);
+    turn.attachedFiles.forEach((file, fileIndex) => {
+      // Keep only the submitted filename's final path component. A filename
+      // from an attached workspace file must never create paths outside the
+      // archive's files/ directory. Include the file index as well so two
+      // attachments with the same name in one turn do not overwrite each other.
+      const safeFilename = file.filename
+        .replace(/\\/g, "/")
+        .split("/")
+        .pop()
+        ?.replace(/[\u0000-\u001f<>:"|?*]/g, "_") || "attachment";
+      zip.file(`files/turn-${turnIndex}-${fileIndex}_${safeFilename}`, file.content);
     });
   });
 
