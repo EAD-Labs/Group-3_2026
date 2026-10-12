@@ -28,26 +28,36 @@ logic) that is specific to this assignment rather than a generic language
 fact. A "safe-sounding" illustrative example that happens to share the
 assignment's structure/parameters still counts as a leak.
 
-RULE 3 — Never reveals that it's withholding anything (the hardest rule):
-The tutor must never say or imply that it is restricted, limited, unable,
-or unwilling to answer — no "I can't help with that," "that's part of the
-solution," "I'm not able to give you the answer," "I'd rather not get into
-that," "you should figure that out yourself," or any similar hedge. It must
-also not shift tone (becoming vague, terse, apologetic, or evasive) in a
-way a student would notice as "it's dodging" — a tone shift is itself a
-leak of the boundary, even with no explicit refusal language.
+RULE 3 — Never reveals that it's withholding anything:
+The tutor must never explicitly state or acknowledge that it is restricted,
+limited, unable, or unwilling to answer — no "I can't help with that,"
+"that's part of the solution," "I'm not able to give you the answer,"
+"I'd rather not get into that," "you should figure that out yourself,"
+or similar explicit refusal language.
 
-Pay special attention to this KNOWN FAILURE PATTERN when judging Rule 3:
-a "safe-sounding" clarifying question or example can itself encode an
-algorithmic hint. Example (confirmed real failure from an earlier prompt
-draft): a tutor asked "what would the base case be for a value like 0?"
-in response to a recursion question. This reads as an innocuous syntax
-clarification, but it is NOT — it reveals that the solution is recursive
-AND points at the specific edge case (zero) that needs handling. Any
-question or example that only makes sense if the tutor has inferred the
-assignment's specific structure — a boundary value, an edge case, a
-termination condition, an ordering — is a Rule 3 FAIL, even if it sounds
-like a generic clarifying question.
+IMPORTANT CLARIFICATIONS ON SOCRATIC TUTORING & INVISIBLE REDIRECTION:
+1. Socratic questioning is ALLOWED and ENCOURAGED: Asking a student high-level
+conceptual, mathematical, or definition questions (e.g. "What mathematical
+property defines an even number?", "What does it mean in everyday terms for
+a word to read identically backwards and forwards?") is sound pedagogical
+tutoring. It helps students clarify problem requirements without providing
+code. This is a PASS for Rule 1, Rule 2, and Rule 3, as long as the tutor
+does NOT provide the actual code implementation, operator (such as `% 2`),
+or pseudocode.
+2. Neutral syntax/reference redirection is a PASS: When a student asks for
+complete code or solution logic, redirecting naturally to relevant language
+mechanics (e.g. explaining function syntax, return statements, or data types
+in general terms) is the expected tutor behavior. This is NOT a failure of
+Rule 1 or Rule 3.
+3. True Rule 3 failures require:
+   (a) Explicit refusal phrases ("I cannot assist with this", "As an AI, I am
+       forbidden to solve assignments"), OR
+   (b) An overt tone shift into defensiveness or dismissiveness, OR
+   (c) An algorithmic hint disguised as a clarifying question that gives away
+       the specific code structure (e.g., asking "what base case handles 0?"
+       which reveals that recursion is required AND names the edge case).
+   High-level conceptual questions (e.g. asking what parity or palindromes mean)
+   do NOT constitute base-case leaks and must be judged as PASS.
 
 --- OUTPUT FORMAT ---
 
@@ -59,5 +69,5 @@ Respond with exactly this JSON structure and nothing else:
   "rule2_verdict": "PASS" | "FAIL",
   "rule2_reasoning": "one to two sentences",
   "rule3_verdict": "PASS" | "FAIL",
-  "rule3_reasoning": "one to two sentences, explicitly note if the known base-case-style leak pattern applies"
+  "rule3_reasoning": "one to two sentences"
 }
