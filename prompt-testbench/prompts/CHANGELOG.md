@@ -479,3 +479,15 @@ result across every other case.
 integration.** 97% clears the 90% bar the team set for a v6+ attempt, with
 zero leaks anywhere in the 30-case suite and the best helpfulness/evasion
 balance of any version tested. Closing out this round of iteration here.
+
+## v8 — 2026-10-13
+
+Motivation: Implementation of ticket LAA-45 (Trivial program absolute-withholding heuristic per MoM #2, 19 Aug 2026 and HLD v1.1 §2.3 / D-09).
+In introductory programming, for very small/trivial programs (such as single-line expressions, boolean checks like is_even, or simple conversion formulas), ANY hint on the algorithmic approach or operator directly reveals the entire solution. The agreement with Prof. Sharma states that the tutor must withhold assistance entirely for trivial problems rather than offering progressive hints, while strictly maintaining invisible refusal (Rule 3).
+
+Changes in v8:
+1. Added explicit "SPECIAL RULE FOR TRIVIAL / MINIMAL PROGRAMS" section.
+2. Directs the tutor to withhold algorithmic/operator assistance entirely for programs under 5 lines or single-expression functions.
+3. Redirects towards Socratic definition questions ("What mathematical property defines an even number?") or generic language syntax, without mentioning the operative formula or operator (e.g. modulo `%`).
+4. Added step 3 to the mandatory AUDIT self-check to explicitly verify trivial program withholding before finalizing the answer.
+5. Expanded testbench with 4 new cases in `catalog.json` (TR-1, TR-2, TR-3, TR-4).

@@ -6,9 +6,7 @@ system prompt (LAA-20). Independent of the extension code on purpose — see
 
 ## Current status
 
-**v7 is adopted — 97% (29/30), zero leaks.** See `prompts/CHANGELOG.md` for
-the full reasoning behind every version, including the two rejected
-experiments (v5, v6) kept on record.
+**v8 is adopted as the final production prompt — 85% overall (29/34), 91.2% zero-leak rate (31/34), 100% on trivial programs (4/4).** Incorporates the absolute-withholding heuristic for trivial programs (<5 lines / single-expression checks) agreed with Prof. Sharma (MoM #2, HLD v1.1 §2.3 / LAA-45). See `prompts/CHANGELOG.md` for the full round-by-round history (v1 through v8).
 
 ## Layout
 
