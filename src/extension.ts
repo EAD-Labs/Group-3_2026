@@ -73,6 +73,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 	// every turn so the batch logger can read the full session later, even if
 	// VS Code restarts or the webview is recreated mid-assignment.
 	private readonly historyKey = `chatHistory:${CURRENT_SESSION.sessionId}`;
+	private readonly messageListeners = new Map<vscode.WebviewView, vscode.Disposable>();
+	private readonly viewDisposalListeners = new Map<vscode.WebviewView, vscode.Disposable>();
+	private readonly processedMessageIds = new Set<string>();
 
 	constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {}
 
@@ -83,6 +86,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	public resolveWebviewView(webviewView: vscode.WebviewView) {
+		// A view can be resolved again after being hidden or recreated. Dispose
+		// any listeners associated with its previous resolution first.
+		this.messageListeners.get(webviewView)?.dispose();
+		this.viewDisposalListeners.get(webviewView)?.dispose();
+
 		webviewView.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'media')]
@@ -90,13 +98,19 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 		webviewView.webview.html = this._getHtml(webviewView.webview);
 
-				// Listen for messages coming FROM the webview
-				webviewView.webview.onDidReceiveMessage(async (message) => {
+		// Listen for messages coming FROM the webview. Keep the disposable so a
+		// re-resolution or view disposal cannot leave a second handler behind.
+		const messageListener = webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.type === 'sendMessage') {
+				const requestId = message.requestId;
+				if (typeof requestId !== 'string' || this.processedMessageIds.has(requestId)) {
+					return;
+				}
+				// Set synchronously before the first await so concurrent duplicate
+				// events cannot append the same student turn twice.
+				this.processedMessageIds.add(requestId);
 
-				
-
-								// LAA-14: build the single documented payload (message + relevant files)
+				// LAA-14: build the single documented payload (message + relevant files)
 				const payload: MessagePayload = {
 					message: message.text,
 					files: getRelevantFiles()
@@ -145,6 +159,13 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 				}
 			}
 		});
+		this.messageListeners.set(webviewView, messageListener);
+		const viewDisposalListener = webviewView.onDidDispose(() => {
+			messageListener.dispose();
+			this.messageListeners.delete(webviewView);
+			this.viewDisposalListeners.delete(webviewView);
+		});
+		this.viewDisposalListeners.set(webviewView, viewDisposalListener);
 	}
 
 		private _getHtml(webview: vscode.Webview): string {
@@ -340,7 +361,10 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 							return;
 						}
 						addMessage(text, 'user');
-						vscode.postMessage({ type: 'sendMessage', text: text });
+						const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+							? crypto.randomUUID()
+							: Date.now() + '-' + Math.random().toString(36).slice(2);
+						vscode.postMessage({ type: 'sendMessage', requestId, text: text });
 						messageInput.value = '';
 					}
 
@@ -348,6 +372,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 					messageInput.addEventListener('keydown', (event) => {
 						if (event.key === 'Enter') {
+							event.preventDefault();
 							sendCurrentMessage();
 						}
 					});
