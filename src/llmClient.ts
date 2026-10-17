@@ -7,6 +7,7 @@ const MAX_RETRIES = 3;
 export interface ConversationTurn {
 	role: 'student' | 'tutor';
 	text: string;
+	timestamp: string;
 }
 
 export type LLMErrorKind = 'timeout' | 'rate_limit' | 'network' | 'bad_response' | 'no_api_key';

@@ -11,10 +11,16 @@
 
 import { BatchPayload } from "./logSchema";
 import { compressSessionPayload } from "./compressSession";
+import * as vscode from "vscode";
 
-// TODO: swap this for Garvit's real public URL once it's hosted somewhere
-// reachable beyond his own machine — localhost only works on his laptop.
-const SERVER_ENDPOINT = "http://localhost:3000/log"; // was /logs — fixed per Garvit's report
+const DEFAULT_SERVER_ENDPOINT = "http://localhost:3000/log";
+
+function getServerEndpoint(): string {
+  return vscode.workspace
+    .getConfiguration("guardedTutor")
+    .get<string>("loggingServerUrl", DEFAULT_SERVER_ENDPOINT)
+    .trim() || DEFAULT_SERVER_ENDPOINT;
+}
 
 export interface SendResult {
   success: boolean;
@@ -35,7 +41,7 @@ export async function sendBatch(payload: BatchPayload): Promise<SendResult> {
     });
     formData.append("archive", archiveBlob, "session.zip");
 
-    const response = await fetch(SERVER_ENDPOINT, {
+    const response = await fetch(getServerEndpoint(), {
       method: "POST",
       // Let fetch set the multipart boundary; Garvit's server reads the
       // uploaded ZIP from the `archive` field.

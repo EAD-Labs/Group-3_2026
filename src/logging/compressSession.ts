@@ -3,7 +3,8 @@
  *
  * Bundles the packaged session (chat history + attached files) into the
  * ZIP layout expected by Garvit's server branch. The required
- * execution_trace.json entry is empty until the team scopes LAA-42.
+ * execution_trace.json is an empty compatibility entry: the professor has
+ * directed that no code-execution data be stored (LAA-42).
  *
  * Requires the `jszip` package: npm install jszip
  * (and `npm install --save-dev @types/jszip` if using an older version
@@ -22,7 +23,7 @@ const MAX_ARCHIVE_ENTRIES = 100;
 /**
  * Builds an archive matching server/archive.js on the server packaging branch:
  * - turns.json — the full packaged chat payload
- * - execution_trace.json — an empty placeholder until LAA-42 defines capture
+ * - execution_trace.json — an empty array; no execution data is collected
  * - files/ — each attached file, written out individually for easy inspection
  *
  * Returns the zip as a Buffer, ready to be written to disk or uploaded.
@@ -53,8 +54,8 @@ export async function compressSessionPayload(
   // Keep the structured bundle intact under the filename the server decoder expects.
   zip.file("turns.json", serializedPayload);
 
-  // LAA-42 still needs the team to define execution capture and its schema.
-  // Emit the required archive entry with no fabricated trace data for now.
+  // The professor has explicitly ruled out storing execution data. Garvit's
+  // current archive decoder requires this entry, so retain it as an empty array.
   zip.file("execution_trace.json", JSON.stringify([], null, 2));
 
   // Also write out each attached file individually, so the zip is

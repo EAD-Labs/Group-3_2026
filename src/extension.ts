@@ -106,7 +106,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 				// Same prompt text as before, now generated from the payload
 				const studentText = formatPayloadForPrompt(payload);
 
-				const studentTurn: ConversationTurn = { role: 'student', text: studentText };
+				const studentTurn: ConversationTurn = {
+					role: 'student',
+					text: studentText,
+					timestamp: new Date().toISOString(),
+				};
 				this.llmHistory.push(studentTurn);
 				await this.appendToDurableHistory(studentTurn);
 
@@ -122,7 +126,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
 				try {
 					const reply = await callGuardedTutor(apiKey, this.llmHistory);
-					const tutorTurn: ConversationTurn = { role: 'tutor', text: reply };
+					const tutorTurn: ConversationTurn = {
+						role: 'tutor',
+						text: reply,
+						timestamp: new Date().toISOString(),
+					};
 					this.llmHistory.push(tutorTurn);
 					await this.appendToDurableHistory(tutorTurn);
 					webviewView.webview.postMessage({ type: 'botReply', text: reply });

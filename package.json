@@ -82,6 +82,11 @@
           "type": "string",
           "default": "",
           "description": "Optional API token / Bearer key for the self-hosted endpoint (leave empty if none required)."
+        },
+        "guardedTutor.loggingServerUrl": {
+          "type": "string",
+          "default": "http://localhost:3000/log",
+          "description": "Logging server POST /log URL. For a server on another device, use its LAN address, for example http://192.168.1.20:3000/log."
         }
       }
     }

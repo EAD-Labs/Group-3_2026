@@ -3,7 +3,7 @@
  *
  * UPDATED to match Tejas's actual ConversationTurn shape found in
  * extension.ts:
- *   { role: 'student' | 'tutor', text: string }
+ *   { role: 'student' | 'tutor', text: string, timestamp: string }
  *
  * Our final schema (LogEntry, sent to the server) keeps its own field
  * names — role: 'student' | 'assistant', message: string — so we
@@ -23,12 +23,14 @@ import { parseStudentMessage } from "./relevantFiles";
 
 /**
  * Mirrors Tejas's real ConversationTurn shape from extension.ts.
- * Update this if his shape changes.
+ * Update this if the shared ConversationTurn shape changes. Older durable
+ * records may lack timestamp and use the packaging fallback below.
  */
 export interface RawChatTurn {
   role: "student" | "tutor";
   text: string;
-  timestamp?: string; // not currently present on his side — we generate one if missing
+  // Optional only for chat history written by older extension versions.
+  timestamp?: string;
 }
 
 /**
@@ -51,6 +53,8 @@ export function packageTurn(raw: RawChatTurn, sessionId: string): LogEntry {
 
   return {
     sessionId,
+    // New turns already have their creation timestamp. The fallback keeps
+    // older persisted turns (written before LAA-57) packageable.
     timestamp: raw.timestamp ?? new Date().toISOString(),
     role: toSchemaRole(raw.role),
     message: parsed ? parsed.question : raw.text,

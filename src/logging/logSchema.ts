@@ -38,11 +38,12 @@ export interface AssignmentSessionConfig {
   deadline: string;        // ISO 8601 UTC, hardcoded manually
 }
 
-// Example — replace per assignment until this is made configurable
+// Temporary isolated session for the two-device Python logging demo.
+// Restore the course assignment's real ID/window after the demo.
 export const CURRENT_SESSION: AssignmentSessionConfig = {
-  sessionId: "assignment-3",
-  startTime: "2026-09-05T00:00:00Z",
-  deadline: "2026-09-12T23:59:59Z",
+  sessionId: "demo-python-score-report-2026-10-13",
+  startTime: "2026-10-12T00:00:00Z",
+  deadline: "2026-10-12T00:01:00Z",
 };
 
 // ---- Payload built from full chat history at the deadline, sent as one batch ----
