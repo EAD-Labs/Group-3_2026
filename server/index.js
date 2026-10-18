@@ -5,14 +5,15 @@
 const express = require("express");
 const multer = require("multer");
 const { decodeSessionArchive } = require("./archive");
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 1 } });
 const { validateSessionBundle } = require("./validation");
 const { appendSessionBundle, readAllSessionBundles } = require("./storage");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 
-app.use(express.json({ limit: "10mb" })); // transcripts can carry attached file content
+app.use(express.json({ limit: "25mb" })); // transcripts can carry attached file content
 
 // LAA-32: basic health check.
 app.get("/", (req, res) => {
@@ -100,8 +101,8 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`LAA test server listening on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`LAA test server listening on http://${HOST}:${PORT}`);
   });
 }
 module.exports = app;

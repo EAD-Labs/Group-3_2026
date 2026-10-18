@@ -1,8 +1,8 @@
 const AdmZip = require("adm-zip");
 const { validateSessionBundle } = require("./validation");
 
-const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_ENTRIES = 100;
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_ENTRIES = 2000;
 
 function isSafeArchivePath(name, isDirectory) {
   if (!name || name.startsWith("/") || name.includes("\\") || name.includes("\0")) return false;
@@ -26,7 +26,7 @@ function decodeSessionArchive(buffer, sessionId) {
     if (names.has(name)) throw new Error("Archive contains duplicate paths.");
     names.add(name);
     total += entry.header.size;
-    if (total > MAX_BYTES) throw new Error("Uncompressed archive exceeds 20 MiB.");
+    if (total > MAX_BYTES) throw new Error("Uncompressed archive exceeds 50 MiB.");
 
     if (!entry.isDirectory && name !== "turns.json" && name !== "execution_trace.json") {
       if (!name.startsWith("files/") || name.split("/").length < 2) {

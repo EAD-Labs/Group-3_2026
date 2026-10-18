@@ -56,16 +56,16 @@ test('archive limits reject excessive expansion and entry counts', () => {
  const large = new AdmZip();
  large.addFile('turns.json', Buffer.from(JSON.stringify(bundle)));
  large.addFile('execution_trace.json', Buffer.from('[]'));
- large.addFile('files/large.txt', Buffer.alloc(21 * 1024 * 1024, 65));
- assert.throws(() => decodeSessionArchive(large.toBuffer()), /20 MiB/);
+ large.addFile('files/large.txt', Buffer.alloc(51 * 1024 * 1024, 65));
+ assert.throws(() => decodeSessionArchive(large.toBuffer()), /50 MiB/);
  const many = new AdmZip();
- for (let i = 0; i < 101; i++) many.addFile(`files/${i}.txt`, Buffer.from('x'));
- assert.throws(() => decodeSessionArchive(many.toBuffer()), /100 entries/);
+ for (let i = 0; i < 2001; i++) many.addFile(`files/${i}.txt`, Buffer.from('x'));
+ assert.throws(() => decodeSessionArchive(many.toBuffer()), /2000 entries/);
 });
 
 test('oversized uploads return JSON errors without storage', async () => {
  const before = (await (await fetch(base + '/logs')).json()).length;
- const body = new FormData(); body.append('archive', new Blob([Buffer.alloc(11 * 1024 * 1024)]), 'large.zip');
+ const body = new FormData(); body.append('archive', new Blob([Buffer.alloc(26 * 1024 * 1024)]), 'large.zip');
  const response = await fetch(base + '/log', { method: 'POST', body });
  assert.equal(response.status, 413); assert.match((await response.json()).error, /oversized/);
  assert.equal((await (await fetch(base + '/logs')).json()).length, before);

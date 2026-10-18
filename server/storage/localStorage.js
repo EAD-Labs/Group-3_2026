@@ -2,15 +2,22 @@
 // Original uploaded files are also copied under received-files/ for easy access.
 
 const fs = require("fs");
+const fsp = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "data"));
 const DATA_FILE = path.join(DATA_DIR, "logs.jsonl");
 
-function ensureDataFile() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "");
+let writeQueue = Promise.resolve();
+
+async function ensureDataFile() {
+  await fsp.mkdir(DATA_DIR, { recursive: true });
+  try {
+    await fsp.access(DATA_FILE);
+  } catch {
+    await fsp.writeFile(DATA_FILE, "", { flag: "a" });
+  }
 }
 
 function safeRelativePath(filename) {
@@ -20,8 +27,8 @@ function safeRelativePath(filename) {
   return filename.split("/").every((part) => part && part !== "." && part !== "..");
 }
 
-function appendSessionBundle(bundle) {
-  ensureDataFile();
+async function appendSessionBundle(bundle) {
+  await ensureDataFile();
   const receivedAt = new Date().toISOString();
   const files = Array.isArray(bundle.files) ? bundle.files : [];
   const sessionKey = crypto.createHash("sha256").update(bundle.sessionId).digest("hex");
@@ -57,22 +64,25 @@ function appendSessionBundle(bundle) {
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       const destination = path.resolve(uploadDir, ...file.filename.split("/"));
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.writeFileSync(destination, Buffer.from(file.content, file.encoding || "utf8"), { flag: "wx" });
+      await fsp.mkdir(path.dirname(destination), { recursive: true });
+      await fsp.writeFile(destination, Buffer.from(file.content, file.encoding || "utf8"), { flag: "wx" });
     }
 
     const record = { ...bundle, files: savedFiles, receivedAt };
-    fs.appendFileSync(DATA_FILE, `${JSON.stringify(record)}\n`);
+    const line = `${JSON.stringify(record)}\n`;
+    writeQueue = writeQueue.catch(() => {}).then(() => fsp.appendFile(DATA_FILE, line));
+    await writeQueue;
     return record;
   } catch (err) {
-    fs.rmSync(uploadDir, { recursive: true, force: true });
+    await fsp.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
 }
 
-function readAllSessionBundles() {
-  ensureDataFile();
-  const raw = fs.readFileSync(DATA_FILE, "utf-8");
+async function readAllSessionBundles() {
+  await ensureDataFile();
+  await writeQueue.catch(() => {});
+  const raw = await fsp.readFile(DATA_FILE, "utf-8");
   return raw
     .split("\n")
     .map((line) => line.trim())

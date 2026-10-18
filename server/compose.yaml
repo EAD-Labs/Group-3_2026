@@ -2,9 +2,10 @@ services:
   log-server:
     build: .
     ports:
-      - "127.0.0.1:3000:3000"
+      - "0.0.0.0:3000:3000"
     environment:
       PORT: "3000"
+      HOST: "0.0.0.0"
       STORAGE_BACKEND: local
       DATA_DIR: /data
     volumes:
