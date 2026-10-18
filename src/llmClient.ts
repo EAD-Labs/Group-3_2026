@@ -51,9 +51,36 @@ function extractFinalResponse(rawText: string): string | null {
 	return rawText.slice(match.index + match[0].length).trim();
 }
 
+const EMBEDDED_FILE_PREFIX_REGEX = /^(Current file \([^)]+\):\n```\n[\s\S]*?\n```)\n\n(Student question: [\s\S]*)$/;
+
+// Collapse identical consecutive embedded file blocks in older student turns
+// (always keeping the first occurrence of each distinct version and the final
+// turn in full) so long multi-turn chats don't send dozens of redundant copies
+// of the same file into the LLM context window.
+function deduplicateHistoryFiles(history: ConversationTurn[]): ConversationTurn[] {
+	let lastFileBlock: string | null = null;
+	return history.map((turn, idx) => {
+		if (turn.role !== 'student') {
+			return turn;
+		}
+		const match = EMBEDDED_FILE_PREFIX_REGEX.exec(turn.text);
+		if (!match) {
+			return turn;
+		}
+		const [, fileBlock, questionPart] = match;
+		const isLastTurn = idx === history.length - 1;
+		if (!isLastTurn && fileBlock === lastFileBlock) {
+			return { ...turn, text: `[Current file unchanged]\n\n${questionPart}` };
+		}
+		lastFileBlock = fileBlock;
+		return turn;
+	});
+}
+
 async function postToGemini(apiKey: string, history: ConversationTurn[], model: string): Promise<string> {
 	const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-	const contents = history.map((turn) => ({
+	const compactHistory = deduplicateHistoryFiles(history);
+	const contents = compactHistory.map((turn) => ({
 		role: turn.role === 'student' ? 'user' : 'model',
 		parts: [{ text: turn.text }],
 	}));
@@ -103,10 +130,11 @@ async function postToGemini(apiKey: string, history: ConversationTurn[], model: 
 async function postToOpenAICompatible(config: LLMConfig, history: ConversationTurn[]): Promise<string> {
 	const endpoint = config.customEndpoint.replace(/\/+$/, '');
 	const url = `${endpoint}/chat/completions`;
+	const compactHistory = deduplicateHistoryFiles(history);
 
 	const messages = [
 		{ role: 'system', content: GUARDED_MODE_PROMPT },
-		...history.map((turn) => ({
+		...compactHistory.map((turn) => ({
 			role: turn.role === 'student' ? 'user' : 'assistant',
 			content: turn.text,
 		})),
