@@ -100,7 +100,9 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package:vsix": "node -e \"require('fs').mkdirSync('artifacts', {recursive:true})\" && vsce package --out artifacts/ --allow-missing-repository --skip-license",
+    "package:list": "vsce ls"
   },
   "devDependencies": {
     "@highlightjs/cdn-assets": "^11.12.0",
@@ -109,6 +111,7 @@
     "@types/vscode": "^1.134.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^4.0.0",
     "eslint": "^10.5.0",
     "markdown-it": "^15.0.2",
     "ts-loader": "^9.6.2",
