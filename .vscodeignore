@@ -17,3 +17,7 @@ artifacts/**
 deliverables/**
 .github/**
 package-lock.json
+
+server/**
+
+*.tmp
