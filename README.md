@@ -1,5 +1,7 @@
 # Guarded Tutor (Learning-Aware AI) — VS Code Extension
 
+> **Project Introduction & Overview:** Visit the [Project Introduction Page](https://ead-labs.github.io/Group-3_2026/) for an overview of the educational problem, target users, and interactive system design. Live sprint task tracking is available on the [Jira Tracking Board](https://learning-aware-ai-jira-board.netlify.app/).
+
 A guarded AI programming tutor for introductory programming students at **NTNU**, developed by **ET617 Group 3** (Tejas Kulkarni, Tanvi Mundra, Garvit Garg, Lavanya Padole) under the guidance of **Prof. Kshitij Sharma**.
 
 Guarded Tutor provides conceptual explanations, debugging guidance, and syntax scaffolding directly inside VS Code **without writing or giving away assignment solutions**, while transparently packaging anonymized chat transcripts and progressive student code snapshots into compressed `.zip` bundles for post-assignment learning analytics.
